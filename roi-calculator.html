@@ -882,18 +882,27 @@ function App() {
                       <>
                         {first > 0 && (
                           <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
-                            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>1st Order — Labor</span>
+                            <span style={{ fontSize:12, color:'var(--text-secondary)', display:'flex', alignItems:'center' }}>
+                              1st Order — Labor
+                              <InfoTooltip text="Direct labor value recovered from time savings. Calculated as hours saved × fully loaded hourly cost, across all active products. TrunkText: time cut from document searches. TrunkSubmittal: time cut from submittal reviews. TrunkReview: time cut from drawing comparisons. These are the most conservative, directly attributable savings."/>
+                            </span>
                             <span style={{ fontFamily:'var(--font-mono)', fontWeight:700, color:'var(--blue)', fontSize:13 }}>{formatCurrency(first)}</span>
                           </div>
                         )}
                         {second > 0 && (
                           <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
-                            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>2nd Order — Cost Avoidance</span>
+                            <span style={{ fontSize:12, color:'var(--text-secondary)', display:'flex', alignItems:'center' }}>
+                              2nd Order — Cost Avoidance
+                              <InfoTooltip text="Downstream cost avoidance from catching errors before they reach the field. TrunkSubmittal: rework avoided when submittal mistakes are caught early (project value × rework rate × % from errors × % caught). TrunkReview: cost of drawing changes that go unnoticed without AI comparison (sets × unclouded changes × % caught × % with cost impact × avg cost per miss). Adjust these rates in the left panel."/>
+                            </span>
                             <span style={{ fontFamily:'var(--font-mono)', fontWeight:700, color:'var(--green)', fontSize:13 }}>{formatCurrency(second)}</span>
                           </div>
                         )}
                         <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
-                          <span style={{ fontSize:12, color:'var(--text-muted)' }}>Hours recovered</span>
+                          <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', alignItems:'center' }}>
+                            Hours recovered
+                            <InfoTooltip text="Total billable hours freed from manual, repetitive tasks across all active products and all projects. These hours don't disappear — they get redeployed to field walks, RFI resolution, contractor coordination, and QA/QC. The 1st Order labor value above is this number priced at each team's loaded hourly rate."/>
+                          </span>
                           <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--text-primary)', fontSize:13 }}>{formatNumber(c.totalHours)} hrs</span>
                         </div>
                         <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
@@ -910,19 +919,28 @@ function App() {
                   <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:5 }}>
                     {ep.trunktext && c.trunktext.total > 0 && (
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--blue-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(109,179,255,0.2)' }}>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--blue)', fontFamily:'var(--font-mono)' }}>TrunkText</span>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--blue)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
+                          TrunkText
+                          <InfoTooltip text="Field users × searches/day × working days × (current search time − TrunkText search time) × loaded labor cost × # of projects. Optionally adds risk avoidance if enabled in Advanced Assumptions (cost of acting on wrong/outdated documents)."/>
+                        </span>
                         <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunktext.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
                       </div>
                     )}
                     {ep.trunksubmittal && c.trunksubmittal.total > 0 && (
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--green-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(74,237,181,0.2)' }}>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--green)', fontFamily:'var(--font-mono)' }}>TrunkSubmittal</span>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--green)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
+                          TrunkSubmittal
+                          <InfoTooltip text="Two components added together, then × # of projects. 1st order: submittals/year × hrs/review × time reduction % × reviewer cost (labor saved). 2nd order: avg project value × rework rate × % of rework from errors × % of errors caught by TrunkSubmittal (rework avoidance). Adjust rates in the left panel."/>
+                        </span>
                         <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunksubmittal.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
                       </div>
                     )}
                     {ep.trunkreview && c.trunkreview.total > 0 && (
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--purple-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(192,173,255,0.2)' }}>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--purple)', fontFamily:'var(--font-mono)' }}>TrunkReview</span>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--purple)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
+                          TrunkReview
+                          <InfoTooltip text="Two components added together, then × # of projects. 1st order: drawing sets/year × hrs/review × time reduction % × reviewer cost (labor saved from automated comparison). 2nd order: drawing sets × unclouded changes/set × % caught by TrunkReview × % with cost impact × avg cost per missed change. Unclouded changes are real drawing revisions the EOR didn't mark — the most dangerous kind."/>
+                        </span>
                         <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunkreview.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
                       </div>
                     )}
@@ -930,8 +948,14 @@ function App() {
 
                   <div style={{ marginTop:12, paddingTop:12, borderTop:'2px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                     <div>
-                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:2 }}>Total Annual Value</div>
-                      <div style={{ fontSize:10, color:'var(--text-muted)' }}>{formatCurrency(c.valuePerProject)} / project</div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:2, display:'flex', alignItems:'center' }}>
+                        Total Annual Value
+                        <InfoTooltip text="Sum of all active products' annual value across your entire portfolio. Formula: per-project value × # of projects. Change the # of Projects input at the top to instantly scale this up or down."/>
+                      </div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', display:'flex', alignItems:'center' }}>
+                        {formatCurrency(c.valuePerProject)} / project
+                        <InfoTooltip text="What one average project delivers. Based on your avg project size and the assumption rates in the left panel. Multiply this by any number of projects to model a different portfolio size — that's exactly what the # of Projects input does."/>
+                      </div>
                     </div>
                     <div style={{ fontSize:30, fontWeight:700, color:'var(--green)', fontFamily:'var(--font-mono)', letterSpacing:'-0.02em' }}>{formatCurrency(c.totalAnnual)}</div>
                   </div>
@@ -939,7 +963,10 @@ function App() {
 
                 {/* Cost of Doing Nothing */}
                 <div style={{ background:'linear-gradient(135deg,rgba(255,112,112,0.1),rgba(255,112,112,0.04))', border:'1.5px solid rgba(255,112,112,0.35)', borderRadius:'var(--radius-lg)', padding:24, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', gap:8 }}>
-                  <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', textTransform:'uppercase', letterSpacing:'0.1em' }}>Cost of Doing Nothing</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', textTransform:'uppercase', letterSpacing:'0.1em', display:'flex', alignItems:'center', gap:5 }}>
+                    Cost of Doing Nothing
+                    <InfoTooltip text="Total Annual Value ÷ 12. Not a fee — it's opportunity cost. Every month without Trunk Tools, this is the value your portfolio could have captured but didn't. It compounds linearly: 3 months = 3× this number, 6 months = 6×, 12 months = the full annual figure above."/>
+                  </div>
                   <div style={{ fontSize:11, color:'var(--red)', opacity:0.75 }}>per month of inaction</div>
                   <div style={{ fontSize:48, fontWeight:700, color:'var(--red)', fontFamily:'var(--font-mono)', letterSpacing:'-0.03em', lineHeight:1, margin:'8px 0' }}>
                     {formatCurrency(c.monthlyCost)}
