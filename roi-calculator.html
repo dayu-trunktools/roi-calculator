@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trunk Tools — ROI Calculator</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-root:      #0e1117;
+      --bg-surface:   #151921;
+      --bg-card:      #1a1f2b;
+      --bg-elevated:  #222837;
+      --bg-input:     #111520;
+      --border:       #313848;
+      --border-light: #2a3040;
+      --border-focus: #f5c542;
+      --text-primary: #f0f2f5;
+      --text-secondary:#b0b8cc;
+      --text-muted:   #8b95ab;
+      --accent:       #f5c542;
+      --accent-hover: #f7d06a;
+      --accent-muted: rgba(245,197,66,0.12);
+      --accent-glow:  rgba(245,197,66,0.22);
+      --accent-text:  #1a1400;
+      --blue:         #6db3ff;
+      --blue-muted:   rgba(109,179,255,0.14);
+      --green:        #4aedb5;
+      --green-muted:  rgba(74,237,181,0.12);
+      --purple:       #c0adff;
+      --purple-muted: rgba(192,173,255,0.12);
+      --red:          #ff7070;
+      --red-muted:    rgba(255,112,112,0.12);
+      --yellow:       #fbbf24;
+      --font-body:    'DM Sans', -apple-system, sans-serif;
+      --font-mono:    'JetBrains Mono', monospace;
+      --radius-sm:    6px;
+      --radius-md:    10px;
+      --radius-lg:    14px;
+      --radius-xl:    20px;
+      --shadow-card:  0 1px 3px rgba(0,0,0,0.3), 0 0 0 1px var(--border);
+      --transition:   180ms ease;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: var(--font-body);
+      background: var(--bg-root);
+      color: var(--text-primary);
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      min-height: 100vh;
+    }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    input, select, textarea, button { font-family: var(--font-body); }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button { opacity: 0.3; }
+    input[type="range"] {
+      -webkit-appearance: none;
+      height: 6px;
+      border-radius: 3px;
+      background: var(--border);
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      border-radius: 50%;
+      background: var(--accent);
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-glow);
+      transition: transform var(--transition);
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes pulseGlow { 0%,100% { box-shadow:0 0 12px var(--accent-glow); } 50% { box-shadow:0 0 24px var(--accent-glow); } }
+    .fade-in { animation: fadeIn 350ms ease both; }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo, useEffect, useRef } = React;
+
+/* ─── Formatters ──────────────────────────────────────────── */
+const formatCurrency = (v) => {
+  if (!v || isNaN(v)) return '$0';
+  if (v >= 1e9) return `$${(v/1e9).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})}B`;
+  if (v >= 1e6) return `$${(v/1e6).toLocaleString('en-US',{minimumFractionDigits:1,maximumFractionDigits:1})}M`;
+  if (v >= 1e3) return `$${(v/1e3).toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}K`;
+  return `$${v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}`;
+};
+const formatNumber = (v) => new Intl.NumberFormat('en-US').format(Math.round(v||0));
+
+/* ─── Defaults ────────────────────────────────────────────── */
+const ROI_DEFAULTS = {
+  global:         { valueCaptureRate: 0.10 },
+  trunktext:      { fieldUsersPerProject:7, searchesPerDay:2, currentSearchTime:20, trunkTextSearchTime:1, loadedLaborCost:100, workingDaysPerYear:250, riskAvoidanceEnabled:false, pctSearchesWithWrongInfo:0.04, pctPreventedByTrunkText:0.65, avgCostPerIncident:3500 },
+  trunksubmittal: { submittalsPerYear:2000, hoursPerReview:0.75, timeReductionPct:0.80, reviewerCost:50, reworkRate:0.04, pctReworkFromErrors:0.30, pctErrorsCaught:0.40 },
+  trunkreview:    { drawingSetsPerYear:24, hoursPerReview:8, timeReductionPct:0.75, reviewerCost:50, uncloudedChangesPerSet:8, pctCaughtByTrunkReview:0.85, pctChangesWithCostImpact:0.50, avgCostPerMissedChange:15000 }
+};
+
+/* ─── Deployment Config ───────────────────────────────────── */
+// Set DEPLOY_URL to your hosted URL so Share links work for anyone worldwide.
+// Example: 'https://yourname.github.io/roi-calc/roi-calculator.html'
+// Leave blank when serving from a real web server (uses window.location automatically).
+const DEPLOY_URL = '';
+
+/* ─── URL encode / decode ─────────────────────────────────── */
+const encodeState = (s) => {
+  try {
+    const payload = { co:s.companyName, n:s.numProjects, a:s.avgProjectSizeM, p:s.enabledProducts, ri:s.roiInputs };
+    const hash = `#s=${btoa(JSON.stringify(payload))}`;
+    const isLocal = window.location.protocol === 'file:';
+    const base = DEPLOY_URL || (isLocal ? '' : `${window.location.origin}${window.location.pathname}`);
+    return base ? `${base}${hash}` : hash;
+  } catch { return window.location.href; }
+};
+const decodeState = () => {
+  try {
+    const m = window.location.hash.match(/#s=(.+)/);
+    if (!m) return null;
+    const d = JSON.parse(atob(m[1]));
+    return {
+      companyName:     d.co || '',
+      numProjects:     d.n  || 10,
+      avgProjectSizeM: d.a  || 20,
+      enabledProducts: { trunktext:true, trunksubmittal:true, trunkreview:false, ...(d.p||{}) },
+      roiInputs:       { global:{...ROI_DEFAULTS.global,...(d.ri?.global||{})}, trunktext:{...ROI_DEFAULTS.trunktext,...(d.ri?.trunktext||{})}, trunksubmittal:{...ROI_DEFAULTS.trunksubmittal,...(d.ri?.trunksubmittal||{})}, trunkreview:{...ROI_DEFAULTS.trunkreview,...(d.ri?.trunkreview||{})} }
+    };
+  } catch { return null; }
+};
+
+/* ─── InfoTooltip ─────────────────────────────────────────── */
+function InfoTooltip({ text }) {
+  const [show, setShow] = useState(false);
+  const [pos,  setPos]  = useState({ top:0, left:0 });
+  const btnRef = useRef(null);
+  const update = () => {
+    if (!btnRef.current) return;
+    const r   = btnRef.current.getBoundingClientRect();
+    const tipW = 320;
+    let left    = r.left + r.width/2 - tipW/2;
+    if (left < 8) left = 8;
+    if (left + tipW > window.innerWidth - 8) left = window.innerWidth - tipW - 8;
+    const above = r.top - 8;
+    if (above > 200) setPos({ bottom: window.innerHeight - r.top + 8, top:'auto', left });
+    else             setPos({ top: r.bottom + 8, bottom:'auto', left });
+  };
+  return (
+    <span style={{ display:'inline-flex', marginLeft:6 }}>
+      <button ref={btnRef} type="button"
+        onMouseEnter={()=>{update();setShow(true);}} onMouseLeave={()=>setShow(false)}
+        onFocus={()=>{update();setShow(true);}}      onBlur={()=>setShow(false)}
+        style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', width:17, height:17, borderRadius:'50%', background:'var(--border)', color:'var(--text-muted)', fontSize:9, fontWeight:700, fontFamily:'var(--font-mono)', border:'none', cursor:'help', padding:0 }}>
+        ?
+      </button>
+      {show && ReactDOM.createPortal(
+        <div style={{ position:'fixed', top:pos.top!=='auto'?pos.top:undefined, bottom:pos.bottom!=='auto'?pos.bottom:undefined, left:pos.left, padding:'10px 14px', background:'var(--bg-elevated)', color:'var(--text-secondary)', fontSize:12, borderRadius:'var(--radius-md)', width:320, zIndex:9999, boxShadow:'0 8px 32px rgba(0,0,0,0.4)', lineHeight:1.5, border:'1px solid var(--border)', pointerEvents:'none' }}>
+          {text}
+        </div>,
+        document.body
+      )}
+    </span>
+  );
+}
+
+/* ─── CalcBreakdown ───────────────────────────────────────── */
+function CalcBreakdown({ label, steps, total, color }) {
+  const lineStyle = { display:'flex', justifyContent:'space-between', alignItems:'center', padding:'3px 0', fontSize:12, fontFamily:'var(--font-mono)' };
+  return (
+    <div style={{ background:'var(--bg-root)', borderRadius:'var(--radius-md)', padding:'12px 16px', marginTop:8, border:'1px solid var(--border-light)' }}>
+      {label && <div style={{ fontSize:10, fontWeight:700, color:color||'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>{label}</div>}
+      {steps.map((s,i) => (
+        <div key={i} style={{ ...lineStyle, color:'var(--text-secondary)', borderBottom:s.divider?'1px solid var(--border-light)':'none', paddingBottom:s.divider?6:3, marginBottom:s.divider?6:0 }}>
+          <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ width:14, textAlign:'right', color:'var(--text-muted)', fontSize:11 }}>{s.op||''}</span>
+            <span>{s.label}</span>
+          </span>
+          <span style={{ fontWeight:500 }}>{s.value}</span>
+        </div>
+      ))}
+      {total && (
+        <div style={{ ...lineStyle, color:color||'var(--accent)', fontWeight:700, borderTop:'1px solid var(--border)', paddingTop:6, marginTop:4 }}>
+          <span style={{ display:'flex', alignItems:'center', gap:6 }}>
+            <span style={{ width:14, textAlign:'right', fontSize:11 }}>=</span>
+            <span>{total.label}</span>
+          </span>
+          <span>{total.value}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── PSlider ─────────────────────────────────────────────── */
+function PSlider({ label, value, onChange, min, max, step=1, prefix, suffix, color, tooltip }) {
+  const pct = ((value-min)/(max-min))*100;
+  const accentColor = color||'var(--accent)';
+  const id = useRef(`sl-${Math.random().toString(36).slice(2)}`).current;
+  const display = `${prefix||''}${typeof value==='number'&&value%1!==0?value.toFixed(1):value}${suffix||''}`;
+  return (
+    <div style={{ padding:'10px 0', borderBottom:'1px solid var(--border-light)' }}>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+        <label htmlFor={id} style={{ fontSize:13, color:'var(--text-secondary)', display:'flex', alignItems:'center' }}>
+          {label}{tooltip && <InfoTooltip text={tooltip}/>}
+        </label>
+        <span style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', fontFamily:'var(--font-mono)' }}>{display}</span>
+      </div>
+      <div style={{ position:'relative', height:6, background:'var(--bg-root)', borderRadius:3 }}>
+        <div style={{ position:'absolute', top:0, left:0, height:'100%', width:`${pct}%`, background:accentColor, borderRadius:3, transition:'width 0.1s' }}/>
+        <input id={id} type="range" min={min} max={max} step={step} value={value}
+          onChange={e=>onChange(parseFloat(e.target.value))}
+          style={{ position:'absolute', top:-6, left:0, width:'100%', height:18, opacity:0, cursor:'pointer', margin:0 }}/>
+      </div>
+      <div style={{ display:'flex', justifyContent:'space-between', marginTop:4 }}>
+        <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{prefix||''}{min}{suffix||''}</span>
+        <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{prefix||''}{max}{suffix||''}</span>
+      </div>
+    </div>
+  );
+}
+
+/* ─── StatBox ─────────────────────────────────────────────── */
+function StatBox({ label, value, sub, color, style:sx }) {
+  return (
+    <div style={{ background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', padding:'16px 20px', border:'1px solid var(--border-light)', ...sx }}>
+      <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>{label}</div>
+      <div style={{ fontSize:24, fontWeight:700, color:color||'var(--text-primary)', fontFamily:'var(--font-mono)', letterSpacing:'-0.02em' }}>{value}</div>
+      {sub && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>{sub}</div>}
+    </div>
+  );
+}
+
+/* ─── NumBox (portfolio inputs) ───────────────────────────── */
+function NumBox({ label, value, onChange, prefix, suffix, min=1, step=1 }) {
+  const id = useRef(`nb-${Math.random().toString(36).slice(2)}`).current;
+  return (
+    <div>
+      <label htmlFor={id} style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>{label}</label>
+      <div style={{ display:'flex', alignItems:'center', gap:5, background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', padding:'8px 14px', transition:'border-color var(--transition)' }}
+        onFocusCapture={e=>e.currentTarget.style.borderColor='var(--accent)'}
+        onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}>
+        {prefix && <span style={{ fontSize:14, color:'var(--text-muted)', fontFamily:'var(--font-mono)', flexShrink:0 }}>{prefix}</span>}
+        <input id={id} type="number" value={value} min={min} step={step}
+          onChange={e=>onChange(Math.max(min, +e.target.value||0))}
+          style={{ flex:1, background:'transparent', border:'none', color:'var(--text-primary)', fontSize:18, fontWeight:700, fontFamily:'var(--font-mono)', outline:'none', minWidth:0, textAlign:'center' }}/>
+        {suffix && <span style={{ fontSize:13, color:'var(--text-muted)', fontFamily:'var(--font-mono)', flexShrink:0 }}>{suffix}</span>}
+      </div>
+    </div>
+  );
+}
+
+/* ─── PDF Generator ───────────────────────────────────────── */
+const generatePDF = (companyName, numProjects, avgProjectSizeM, roiCalc, roiInputs, enabledProducts) => {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'letter' });
+  const W = 215.9, H = 279.4, mx = 20, cw = W - mx*2;
+  let y = 0;
+
+  // Drawing helpers
+  const sf  = (sz,st='normal',col=[28,40,72]) => { doc.setFontSize(sz); doc.setFont('helvetica',st); doc.setTextColor(...col); };
+  const txt = (s,x,yy,opts={}) => doc.text(String(s),x,yy,opts);
+  const ln  = (x1,y1,x2,y2,col=[205,212,228],lw=0.25) => { doc.setDrawColor(...col); doc.setLineWidth(lw); doc.line(x1,y1,x2,y2); };
+  const fr  = (x,yy,w,h,fill) => { doc.setFillColor(...fill); doc.rect(x,yy,w,h,'F'); };
+  const frr = (x,yy,w,h,r,fill,stroke) => {
+    doc.setFillColor(...fill); doc.roundedRect(x,yy,w,h,r,r,'F');
+    if (stroke) { doc.setDrawColor(...stroke); doc.setLineWidth(0.4); doc.roundedRect(x,yy,w,h,r,r,'S'); }
+  };
+
+  const today = new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
+  const co    = companyName || 'Your Portfolio';
+  const activeProds  = Object.keys(enabledProducts).filter(k=>enabledProducts[k]);
+  const prodLabels   = { trunktext:'TrunkText', trunksubmittal:'TrunkSubmittal', trunkreview:'TrunkReview' };
+  const prodColors   = { trunktext:[73,159,255], trunksubmittal:[46,196,140], trunkreview:[150,117,255] };
+  const prodDesc     = {
+    trunktext:      'AI document search — labor recovered from manual look-ups',
+    trunksubmittal: 'Submittal review automation — labor savings + rework avoidance',
+    trunkreview:    'Drawing comparison — labor savings + missed change detection'
+  };
+
+  const drawPageHeader = () => {
+    fr(0,0,W,40,[10,14,26]);
+    // Logo: yellow box with T
+    frr(mx,8,24,24,3,[245,197,66]);
+    sf(13,'bold',[14,14,14]); txt('T',mx+12,23,{align:'center'});
+    // Wordmark
+    sf(13,'bold',[232,238,252]); txt('Trunk Tools',mx+30,17);
+    sf(7,'normal',[118,136,168]); txt('ROI ANALYSIS',mx+30,24);
+    // Right: company + date
+    if (companyName) {
+      sf(11,'bold',[232,238,252]); txt(co,W-mx,17,{align:'right'});
+      sf(7.5,'normal',[128,148,178]); txt(today,W-mx,24.5,{align:'right'});
+    } else {
+      sf(8,'normal',[128,148,178]); txt(today,W-mx,20,{align:'right'});
+    }
+    // Yellow accent strip
+    fr(0,40,W,2.5,[245,197,66]);
+  };
+
+  const drawPageFooter = (pg,total) => {
+    fr(0,H-16,W,16,[10,14,26]);
+    fr(0,H-17.5,W,1.5,[245,197,66]);
+    sf(6.5,'normal',[108,128,158]);
+    txt('Trunk Tools  ·  trunktools.com',mx,H-7.5);
+    txt(`Generated ${today}  ·  Confidential & Proprietary`,W/2,H-7.5,{align:'center'});
+    txt(`Page ${pg} of ${total}`,W-mx,H-7.5,{align:'right'});
+    sf(5.5,'normal',[80,98,128]);
+    txt('Values are estimates based on industry benchmarks and configurable assumptions. Actual results may vary.',mx,H-3.5);
+  };
+
+  // ── PAGE 1 ──────────────────────────────────────────────
+  drawPageHeader();
+  y = 50;
+
+  // Title
+  sf(21,'bold',[12,18,44]); txt('Return on Investment Analysis',mx,y); y += 8;
+  sf(9,'normal',[92,108,140]);
+  txt(`${numProjects} active project${numProjects!==1?'s':''} · $${avgProjectSizeM}M average project size · Trunk Tools platform`,mx,y);
+  y += 6; ln(mx,y,W-mx,y,[198,208,228],0.5); y += 10;
+
+  // Hero metric boxes
+  const hw = (cw-10)/2;
+  frr(mx,y,hw,40,3,[235,252,243],[42,196,136]);
+  sf(7,'bold',[18,118,76]); txt('ESTIMATED ANNUAL VALUE',mx+hw/2,y+8.5,{align:'center'});
+  sf(21,'bold',[16,138,86]); txt(formatCurrency(roiCalc.totalAnnual),mx+hw/2,y+23,{align:'center'});
+  sf(7,'normal',[32,148,100]); txt(`${formatCurrency(roiCalc.valuePerProject)} per project · per year`,mx+hw/2,y+33,{align:'center'});
+
+  const ox = mx+hw+10;
+  frr(ox,y,hw,40,3,[255,238,238],[208,52,52]);
+  sf(7,'bold',[172,35,35]); txt('COST OF INACTION — PER MONTH',ox+hw/2,y+8.5,{align:'center'});
+  sf(21,'bold',[188,36,36]); txt(formatCurrency(roiCalc.monthlyCost),ox+hw/2,y+23,{align:'center'});
+  sf(7,'normal',[152,52,52]); txt('in unrealized value every month of delay',ox+hw/2,y+33,{align:'center'});
+  y += 48;
+
+  // Executive Summary
+  const activeNames = activeProds.map(k=>prodLabels[k]).join(', ');
+  const summaryText = `Deploying ${activeNames} across a ${numProjects}-project portfolio ($${avgProjectSizeM}M average) delivers an estimated ${formatCurrency(roiCalc.totalAnnual)} in annual value — ${formatCurrency(roiCalc.valuePerProject)} per project. Every month without Trunk Tools leaves ${formatCurrency(roiCalc.monthlyCost)} unrealized. Over 12 months, that compounds to ${formatCurrency(roiCalc.totalAnnual)} foregone — value that cannot be recovered.`;
+  frr(mx,y,cw,32,3,[244,246,252]);
+  sf(8,'bold',[42,56,98]); txt('Executive Summary',mx+10,y+9);
+  sf(7.5,'normal',[72,88,120]);
+  const wrapped = doc.splitTextToSize(summaryText, cw-22);
+  doc.text(wrapped,mx+10,y+17);
+  const execH = Math.max(32, wrapped.length*4.8+14);
+  frr(mx,y,cw,execH,3,[244,246,252]);
+  sf(8,'bold',[42,56,98]); txt('Executive Summary',mx+10,y+9);
+  sf(7.5,'normal',[72,88,120]);
+  doc.text(wrapped,mx+10,y+17);
+  y += execH + 9;
+
+  // Value by Solution
+  if (y > H-70) { doc.addPage(); y=22; }
+  sf(10.5,'bold',[12,18,44]); txt('Value by Solution',mx,y);
+  sf(7.5,'normal',[112,128,158]); txt('Estimated annual value delivered per product',W-mx,y,{align:'right'});
+  y += 10;
+  const maxVal = Math.max(...activeProds.map(k=>roiCalc[k]?.total||0),1);
+  activeProds.forEach(prod => {
+    const r = roiCalc[prod]; if (!r||r.total===0) return;
+    const pc = prodColors[prod]; const barW = cw*0.62;
+    if (y > H-58) { doc.addPage(); y=22; }
+    sf(9,'bold',pc); txt(prodLabels[prod],mx,y+5);
+    sf(7,'normal',[112,128,155]); txt(prodDesc[prod],mx+52,y+5);
+    sf(10,'bold',[12,20,52]); txt(formatCurrency(r.total)+'/yr',W-mx,y+5,{align:'right'});
+    frr(mx,y+8,barW,8,2,[218,224,240]);
+    frr(mx,y+8,Math.max(barW*(r.total/maxVal),5),8,2,pc);
+    sf(7,'normal',[132,148,172]);
+    let det = `${Math.round(r.hours).toLocaleString()} hrs recovered`;
+    if (prod==='trunksubmittal'&&r.rework)  det += `   ·   Rework avoided: ${formatCurrency(r.rework)}`;
+    if (prod==='trunkreview'&&r.changes)    det += `   ·   Missed changes caught: ${formatCurrency(r.changes)}`;
+    txt(det,mx,y+23); y += 30;
+  });
+  y += 4;
+
+  // Value Components
+  if (y > H-75) { doc.addPage(); y=22; }
+  ln(mx,y,W-mx,y,[198,208,228],0.4); y += 9;
+  sf(10.5,'bold',[12,18,44]); txt('Value Components',mx,y); y += 9;
+  const first  = (roiCalc.trunktext?.retrieval||0)+(roiCalc.trunksubmittal?.labor||0)+(roiCalc.trunkreview?.labor||0);
+  const second = (roiCalc.trunktext?.riskAvoidance||0)+(roiCalc.trunksubmittal?.rework||0)+(roiCalc.trunkreview?.changes||0);
+  const tHours = activeProds.reduce((s,k)=>s+(roiCalc[k]?.hours||0),0);
+
+  // Table header row
+  fr(mx,y-3,cw,10,[18,24,50]);
+  sf(7.5,'bold',[192,208,235]);
+  txt('Component',mx+4,y+3); txt('Description',mx+58,y+3); txt('Value',W-mx,y+3,{align:'right'});
+  y += 10;
+
+  const compRows = [];
+  if (first>0)   compRows.push([`1st Order`, 'Labor hours recovered × loaded hourly cost', formatCurrency(first), [42,196,136]]);
+  if (second>0)  compRows.push([`2nd Order`, 'Cost avoidance (rework, errors, missed changes)', formatCurrency(second), [73,159,255]]);
+  compRows.push(['Hours', 'Total billable hours recovered per year', `${Math.round(tHours).toLocaleString()} hrs`, [95,112,148]]);
+  compRows.forEach(([comp,desc,val,col],i) => {
+    if (i%2===0) fr(mx,y-3,cw,10,[246,248,253]);
+    sf(8,'bold',[62,78,115]); txt(comp,mx+4,y+3);
+    sf(7.5,'normal',[68,84,118]); txt(desc,mx+58,y+3);
+    sf(8.5,'bold',col); txt(val,W-mx,y+3,{align:'right'});
+    y += 10;
+  });
+  y += 6;
+
+  // Cost of Delay Table
+  if (y > H-80) { doc.addPage(); y=22; }
+  ln(mx,y,W-mx,y,[198,208,228],0.4); y += 9;
+  sf(10.5,'bold',[12,18,44]); txt('Opportunity Cost of Delay',mx,y); y += 5;
+  sf(7.5,'normal',[102,118,148]); txt('Value left on the table for every month Trunk Tools is not deployed:',mx,y); y += 9;
+  fr(mx,y-3,cw,10,[18,24,50]);
+  sf(7.5,'bold',[192,208,235]);
+  txt('Delay Period',mx+4,y+3); txt('Monthly Loss',mx+55,y+3); txt('Cumulative Unrealized Value',mx+112,y+3); txt('Annual Rate',W-mx,y+3,{align:'right'});
+  y += 10;
+  [1,2,3,6,12].forEach((mo,i) => {
+    if (i%2===0) fr(mx,y-3,cw,10,[246,248,253]);
+    sf(7.5,'normal',[65,80,115]); txt(`${mo} month${mo>1?'s':''}`,mx+4,y+3);
+    sf(7.5,'normal',[162,42,42]); txt(formatCurrency(roiCalc.monthlyCost),mx+55,y+3);
+    sf(8.5,'bold',[162,42,42]);   txt(formatCurrency(roiCalc.monthlyCost*mo),mx+112,y+3);
+    sf(7,'normal',[128,145,172]); txt(`(${formatCurrency(roiCalc.totalAnnual)}/yr)`,W-mx,y+3,{align:'right'});
+    y += 10;
+  });
+  y += 8;
+
+  // Key Assumptions
+  if (y > H-70) { doc.addPage(); y=22; }
+  ln(mx,y,W-mx,y,[198,208,228],0.4); y += 9;
+  sf(10.5,'bold',[12,18,44]); txt('Key Assumptions',mx,y); y += 5;
+  sf(7.5,'normal',[102,118,148]); txt('All values are fully configurable in the interactive calculator.',mx,y); y += 9;
+
+  const p = roiInputs;
+  const aRows = [['Portfolio','# of projects',numProjects.toString()],['Portfolio','Avg project size',`$${avgProjectSizeM}M`]];
+  if (enabledProducts.trunktext) {
+    aRows.push(['TrunkText','Field users / project',p.trunktext.fieldUsersPerProject.toString()]);
+    aRows.push(['TrunkText','Searches / day / user',p.trunktext.searchesPerDay.toString()]);
+    aRows.push(['TrunkText','Current search time',`${p.trunktext.currentSearchTime} min`]);
+    aRows.push(['TrunkText','Loaded labor cost',`$${p.trunktext.loadedLaborCost}/hr`]);
+  }
+  if (enabledProducts.trunksubmittal) {
+    aRows.push(['TrunkSubmittal','Submittals / year',p.trunksubmittal.submittalsPerYear.toString()]);
+    aRows.push(['TrunkSubmittal','Hours / review',p.trunksubmittal.hoursPerReview.toString()]);
+    aRows.push(['TrunkSubmittal','Time reduction',`${Math.round(p.trunksubmittal.timeReductionPct*100)}%`]);
+    aRows.push(['TrunkSubmittal','Rework rate',`${(p.trunksubmittal.reworkRate*100).toFixed(1)}%`]);
+  }
+  if (enabledProducts.trunkreview) {
+    aRows.push(['TrunkReview','Drawing sets / year',p.trunkreview.drawingSetsPerYear.toString()]);
+    aRows.push(['TrunkReview','Hours / review',p.trunkreview.hoursPerReview.toString()]);
+    aRows.push(['TrunkReview','Time reduction',`${Math.round(p.trunkreview.timeReductionPct*100)}%`]);
+    aRows.push(['TrunkReview','Avg cost / missed change',`$${p.trunkreview.avgCostPerMissedChange.toLocaleString()}`]);
+  }
+
+  fr(mx,y-3,cw,10,[18,24,50]);
+  sf(7.5,'bold',[192,208,235]);
+  txt('Product',mx+4,y+3); txt('Assumption',mx+52,y+3); txt('Value',W-mx,y+3,{align:'right'});
+  y += 10;
+  aRows.forEach(([prod,key,val],i) => {
+    if (y > H-22) {
+      doc.addPage(); y=22;
+      fr(mx,y-3,cw,10,[18,24,50]);
+      sf(7.5,'bold',[192,208,235]);
+      txt('Product',mx+4,y+3); txt('Assumption',mx+52,y+3); txt('Value',W-mx,y+3,{align:'right'});
+      y += 10;
+    }
+    if (i%2===0) fr(mx,y-3,cw,10,[246,248,253]);
+    sf(7,'bold',[72,88,135]); txt(prod,mx+4,y+3);
+    sf(7.5,'normal',[65,80,115]); txt(key,mx+52,y+3);
+    sf(7.5,'bold',[26,36,72]); txt(val,W-mx,y+3,{align:'right'});
+    y += 10;
+  });
+
+  // Draw footer on every page
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let pg=1; pg<=totalPages; pg++) { doc.setPage(pg); drawPageFooter(pg,totalPages); }
+
+  doc.save(`${(companyName||'Trunk_Tools').replace(/[^a-zA-Z0-9]/g,'_')}_ROI_Analysis.pdf`);
+};
+
+/* ─── Main App ────────────────────────────────────────────── */
+function App() {
+  const init = useMemo(() => decodeState() || {
+    companyName: '',
+    numProjects: 10,
+    avgProjectSizeM: 20,
+    enabledProducts: { trunktext:true, trunksubmittal:true, trunkreview:false },
+    roiInputs: { global:{...ROI_DEFAULTS.global}, trunktext:{...ROI_DEFAULTS.trunktext}, trunksubmittal:{...ROI_DEFAULTS.trunksubmittal}, trunkreview:{...ROI_DEFAULTS.trunkreview} }
+  }, []);
+
+  const [companyName,     setCompanyName]     = useState(init.companyName);
+  const [numProjects,     setNumProjects]     = useState(init.numProjects);
+  const [avgProjectSizeM, setAvgProjectSizeM] = useState(init.avgProjectSizeM);
+  const [enabledProducts, setEnabledProducts] = useState(init.enabledProducts);
+  const [roiInputs,       setRoiInputs]       = useState(init.roiInputs);
+  const [showAdvanced,    setShowAdvanced]     = useState({ trunktext:false, trunksubmittal:false, trunkreview:false });
+  const [copied,          setCopied]           = useState(false);
+
+  const updateRoiInput = (cat, field, val) =>
+    setRoiInputs(prev => ({ ...prev, [cat]:{ ...prev[cat], [field]:parseFloat(val)||0 } }));
+
+  const toggleProduct = (k) => setEnabledProducts(prev => ({ ...prev, [k]:!prev[k] }));
+
+  /* ── ROI Calculations ── (per project, then × numProjects) */
+  const roiCalc = useMemo(() => {
+    const p  = roiInputs;
+    const ep = enabledProducts;
+    const avgProjectValue = avgProjectSizeM * 1e6;
+
+    // TrunkText
+    const ttSearches     = p.trunktext.fieldUsersPerProject * p.trunktext.searchesPerDay * (p.trunktext.workingDaysPerYear||250);
+    const ttTimeSaved    = (p.trunktext.currentSearchTime - p.trunktext.trunkTextSearchTime) / 60;
+    const ttRetrievalPP  = ep.trunktext ? ttSearches * ttTimeSaved * p.trunktext.loadedLaborCost : 0;
+    const ttRiskPP       = ep.trunktext && p.trunktext.riskAvoidanceEnabled
+      ? ttSearches * p.trunktext.pctSearchesWithWrongInfo * p.trunktext.pctPreventedByTrunkText * p.trunktext.avgCostPerIncident : 0;
+    const ttTotalPP      = ttRetrievalPP + ttRiskPP;
+
+    // TrunkSubmittal
+    const tsHrsSavedPP   = ep.trunksubmittal ? p.trunksubmittal.submittalsPerYear * p.trunksubmittal.hoursPerReview * p.trunksubmittal.timeReductionPct : 0;
+    const tsLaborPP      = ep.trunksubmittal ? tsHrsSavedPP * p.trunksubmittal.reviewerCost : 0;
+    const tsReworkPP     = ep.trunksubmittal ? avgProjectValue * p.trunksubmittal.reworkRate * p.trunksubmittal.pctReworkFromErrors * p.trunksubmittal.pctErrorsCaught : 0;
+    const tsTotalPP      = tsLaborPP + tsReworkPP;
+
+    // TrunkReview
+    const trHrsSavedPP   = ep.trunkreview ? p.trunkreview.drawingSetsPerYear * p.trunkreview.hoursPerReview * p.trunkreview.timeReductionPct : 0;
+    const trLaborPP      = ep.trunkreview ? trHrsSavedPP * p.trunkreview.reviewerCost : 0;
+    const trChangesPP    = ep.trunkreview ? p.trunkreview.drawingSetsPerYear * p.trunkreview.uncloudedChangesPerSet * p.trunkreview.pctCaughtByTrunkReview * p.trunkreview.pctChangesWithCostImpact * p.trunkreview.avgCostPerMissedChange : 0;
+    const trTotalPP      = trLaborPP + trChangesPP;
+
+    const valuePerProject = ttTotalPP + tsTotalPP + trTotalPP;
+    const n = Math.max(numProjects, 0);
+
+    return {
+      trunktext:     { retrieval:ttRetrievalPP*n, riskAvoidance:ttRiskPP*n, total:ttTotalPP*n, hours:(ep.trunktext?ttSearches*ttTimeSaved:0)*n, labor:ttRetrievalPP*n },
+      trunksubmittal:{ labor:tsLaborPP*n, rework:tsReworkPP*n, total:tsTotalPP*n, hours:tsHrsSavedPP*n },
+      trunkreview:   { labor:trLaborPP*n, changes:trChangesPP*n, total:trTotalPP*n, hours:trHrsSavedPP*n },
+      pp: { ttRetrieval:ttRetrievalPP, ttRisk:ttRiskPP, tsLabor:tsLaborPP, tsRework:tsReworkPP, trLabor:trLaborPP, trChanges:trChangesPP, ttSearches, ttTimeSaved, tsHrsSaved:tsHrsSavedPP, trHrsSaved:trHrsSavedPP },
+      valuePerProject,
+      totalAnnual:   valuePerProject * n,
+      monthlyCost:   (valuePerProject * n) / 12,
+      totalHours:    ((ep.trunktext?ttSearches*ttTimeSaved:0) + tsHrsSavedPP + trHrsSavedPP) * n
+    };
+  }, [roiInputs, enabledProducts, numProjects, avgProjectSizeM]);
+
+  const p  = roiInputs;
+  const ep = enabledProducts;
+  const c  = roiCalc;
+  const pp = c.pp;
+  const activeCount = [ep.trunktext, ep.trunksubmittal, ep.trunkreview].filter(Boolean).length;
+
+  const state = useMemo(() => ({ companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs }), [companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs]);
+
+  const handleShare = () => {
+    const link = encodeState(state);
+    navigator.clipboard.writeText(link).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2600);
+    });
+  };
+
+  const handleDownload = () => generatePDF(companyName, numProjects, avgProjectSizeM, roiCalc, roiInputs, enabledProducts);
+
+  const shareWarning = !DEPLOY_URL && window.location.protocol === 'file:';
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column' }}>
+
+      {/* ── Header ── */}
+      <header style={{ background:'var(--bg-surface)', borderBottom:'1px solid var(--border)', padding:'0 40px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100, flexShrink:0 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 0 14px var(--accent-glow)' }}>
+            <span style={{ fontSize:18, fontWeight:800, color:'var(--accent-text)', lineHeight:1 }}>T</span>
+          </div>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em', lineHeight:1.2 }}>Trunk Tools</div>
+            <div style={{ fontSize:9.5, color:'var(--text-muted)', fontFamily:'var(--font-mono)', letterSpacing:'0.08em' }}>ROI CALCULATOR</div>
+          </div>
+        </div>
+
+        <div style={{ flex:1, maxWidth:320, margin:'0 40px' }}>
+          <input type="text" value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Company name (optional — appears on report)"
+            style={{ width:'100%', padding:'8px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--bg-input)', color:'var(--text-primary)', fontSize:13, outline:'none', transition:'border-color var(--transition)' }}
+            onFocus={e=>e.target.style.borderColor='var(--accent)'} onBlur={e=>e.target.style.borderColor='var(--border)'}/>
+        </div>
+
+        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+          <button onClick={handleShare}
+            title={shareWarning ? 'This file needs to be hosted on a web server for the link to be openable by others. Set DEPLOY_URL in the source to your hosted URL.' : 'Copy shareable link with all current settings pre-filled'}
+            style={{ padding:'8px 18px', borderRadius:'var(--radius-md)', border:`1px solid ${copied?'rgba(74,237,181,0.4)':shareWarning?'rgba(251,191,36,0.45)':'var(--border)'}`, background:copied?'var(--green-muted)':shareWarning?'rgba(251,191,36,0.08)':'var(--bg-elevated)', color:copied?'var(--green)':shareWarning?'var(--yellow)':'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all var(--transition)' }}>
+            <span style={{ fontSize:15 }}>{copied?'✓':shareWarning?'⚠':'⎘'}</span>
+            {copied ? 'Link copied!' : shareWarning ? 'Host to Share' : 'Share / Customize'}
+          </button>
+          <button onClick={handleDownload} disabled={c.totalAnnual===0}
+            style={{ padding:'8px 22px', borderRadius:'var(--radius-md)', border:'none', background:c.totalAnnual>0?'var(--accent)':'var(--bg-elevated)', color:c.totalAnnual>0?'var(--accent-text)':'var(--text-muted)', fontSize:13, fontWeight:700, cursor:c.totalAnnual>0?'pointer':'not-allowed', display:'flex', alignItems:'center', gap:7, boxShadow:c.totalAnnual>0?'0 0 14px var(--accent-glow)':'none', transition:'all var(--transition)' }}>
+            <span style={{ fontSize:15 }}>↓</span> Download Report
+          </button>
+        </div>
+      </header>
+
+      {/* ── Main ── */}
+      <main style={{ flex:1, maxWidth:1680, margin:'0 auto', width:'100%', padding:'28px 40px 60px' }}>
+
+        {/* Portfolio Inputs + Product Toggles — full width */}
+        <div style={{ display:'flex', gap:16, marginBottom:24, alignItems:'flex-end', flexWrap:'wrap', background:'var(--bg-surface)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)', padding:'18px 24px' }}>
+          <NumBox label="# of Projects"   value={numProjects}     onChange={v=>setNumProjects(Math.max(1,Math.round(v)))} min={1}/>
+          <NumBox label="Avg Project Size" value={avgProjectSizeM} onChange={v=>setAvgProjectSizeM(Math.max(1,v))} prefix="$" suffix="M" min={1} step={5}/>
+          <div style={{ padding:'8px 18px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)', height:54, display:'flex', flexDirection:'column', justifyContent:'center' }}>
+            <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Total Portfolio</div>
+            <div style={{ fontSize:16, fontWeight:700, fontFamily:'var(--font-mono)', color:'var(--text-secondary)' }}>{formatCurrency(numProjects * avgProjectSizeM * 1e6)}</div>
+          </div>
+          <div style={{ flex:1 }}/>
+          <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+            <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:4 }}>Solutions:</span>
+            {[
+              { k:'trunktext',     label:'TrunkText',     color:'var(--blue)',   border:'rgba(109,179,255,0.35)', bg:'var(--blue-muted)' },
+              { k:'trunksubmittal',label:'TrunkSubmittal',color:'var(--green)',  border:'rgba(74,237,181,0.35)',  bg:'var(--green-muted)' },
+              { k:'trunkreview',   label:'TrunkReview',   color:'var(--purple)', border:'rgba(192,173,255,0.35)', bg:'var(--purple-muted)' }
+            ].map(prod => (
+              <button key={prod.k} onClick={()=>toggleProduct(prod.k)}
+                style={{ padding:'7px 16px', borderRadius:'var(--radius-xl)', border:`1.5px solid ${ep[prod.k]?prod.border:'var(--border)'}`, background:ep[prod.k]?prod.bg:'transparent', color:ep[prod.k]?prod.color:'var(--text-muted)', fontSize:13, fontWeight:600, cursor:'pointer', transition:'all var(--transition)', display:'flex', alignItems:'center', gap:6 }}>
+                {ep[prod.k] && <span style={{ fontSize:11 }}>✓</span>}
+                {prod.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Two-column: Calculator left, Results right ── */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 400px', gap:24, alignItems:'start' }}>
+
+          {/* ══ LEFT: Inputs & Assumptions ══ */}
+          <div>
+            {/* Section label */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:18, paddingBottom:12, borderBottom:'1px solid var(--border-light)' }}>
+              <div style={{ width:4, height:34, borderRadius:2, background:'var(--accent)', flexShrink:0 }}/>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em' }}>Inputs &amp; Assumptions</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Adjust sliders to match your portfolio — results update live on the right</div>
+              </div>
+            </div>
+
+            {activeCount === 0 ? (
+              <div style={{ textAlign:'center', padding:'80px 0', color:'var(--text-muted)', fontSize:15 }}>
+                Enable at least one solution above to see your ROI.
+              </div>
+            ) : (
+              <div className="fade-in">
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${activeCount},1fr)`, gap:16, marginBottom:16 }}>
+
+                  {/* ── TrunkText Card ── */}
+                  {ep.trunktext && (
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #6db3ff' }}>
+                      <h4 style={{ color:'var(--blue)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkText</h4>
+
+                      <PSlider label="Field Users / Project" value={p.trunktext.fieldUsersPerProject} onChange={v=>updateRoiInput('trunktext','fieldUsersPerProject',v)} min={1} max={300} step={1} color="var(--blue)"/>
+                      <PSlider label="Searches / Day / User"  value={p.trunktext.searchesPerDay}          onChange={v=>updateRoiInput('trunktext','searchesPerDay',v)}          min={1} max={20}  step={1} color="var(--blue)"/>
+                      <PSlider label="Current Search Time"    value={p.trunktext.currentSearchTime}       onChange={v=>updateRoiInput('trunktext','currentSearchTime',v)}       min={5} max={60}  step={1} suffix=" min" color="var(--blue)"
+                        tooltip={
+                          <div>
+                            <div style={{ fontWeight:600, marginBottom:6, color:'var(--text-primary)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.04em' }}>Where the time goes:</div>
+                            {[['~1 min','Open project management tool'],['~1–2 min','Navigate to the correct project'],['~2–3 min','Filter or search for the right document folder'],['~3–4 min','Browse through document list and revisions'],['~3–5 min','Open and scan documents to find the right one'],['~2–3 min','Locate the specific information within the document'],['~2–3 min','Cross-reference with other docs if needed']].map(([time,desc],i) => (
+                              <div key={i} style={{ display:'flex', gap:8, padding:'3px 0', borderBottom:i<6?'1px solid var(--border-light)':'none' }}>
+                                <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--blue)', fontWeight:600, flexShrink:0, minWidth:52 }}>{time}</span>
+                                <span style={{ fontSize:11 }}>{desc}</span>
+                              </div>
+                            ))}
+                            <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~14–21 min for a typical document search</div>
+                          </div>
+                        }/>
+
+                      <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunktext:!prev.trunktext}))}
+                        style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
+                        <span style={{ transition:'transform 180ms ease', transform:showAdvanced.trunktext?'rotate(90deg)':'rotate(0deg)', fontSize:10 }}>▶</span>
+                        Advanced Assumptions
+                      </button>
+                      {showAdvanced.trunktext && (
+                        <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
+                          <PSlider label="TrunkText Search Time"  value={p.trunktext.trunkTextSearchTime}  onChange={v=>updateRoiInput('trunktext','trunkTextSearchTime',v)}  min={0.5} max={10}  step={0.5} suffix=" min" color="var(--blue)" tooltip="How long a search takes with TrunkText AI. Default 1 minute."/>
+                          <PSlider label="Loaded Labor Cost"      value={p.trunktext.loadedLaborCost}      onChange={v=>updateRoiInput('trunktext','loadedLaborCost',v)}      min={25}  max={150} step={5}   prefix="$" suffix="/hr" color="var(--blue)" tooltip="Fully loaded hourly cost of a field worker."/>
+                          <PSlider label="Working Days / Year"    value={p.trunktext.workingDaysPerYear||250} onChange={v=>updateRoiInput('trunktext','workingDaysPerYear',v)} min={200} max={300} step={5} color="var(--blue)"/>
+                          <div style={{ marginTop:12, padding:'12px 14px', background:'var(--bg-input)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)' }}>
+                            <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginBottom:p.trunktext.riskAvoidanceEnabled?12:0 }}>
+                              <input type="checkbox" checked={!!p.trunktext.riskAvoidanceEnabled} onChange={()=>setRoiInputs(prev=>({...prev,trunktext:{...prev.trunktext,riskAvoidanceEnabled:!prev.trunktext.riskAvoidanceEnabled}}))}/>
+                              <div>
+                                <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)' }}>Include Risk Avoidance</div>
+                                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, lineHeight:1.4 }}>Cost of field teams acting on wrong or outdated documents</div>
+                              </div>
+                            </label>
+                            {p.trunktext.riskAvoidanceEnabled && (
+                              <div style={{ borderTop:'1px solid var(--border-light)', paddingTop:8 }}>
+                                <PSlider label="% Searches with Wrong Info"    value={+(p.trunktext.pctSearchesWithWrongInfo*100).toFixed(1)} onChange={v=>updateRoiInput('trunktext','pctSearchesWithWrongInfo',v/100)} min={1} max={15} step={0.5} suffix="%" color="var(--blue)"/>
+                                <PSlider label="% Prevented by TrunkText"     value={Math.round(p.trunktext.pctPreventedByTrunkText*100)}    onChange={v=>updateRoiInput('trunktext','pctPreventedByTrunkText',v/100)} min={20} max={95} step={5} suffix="%" color="var(--blue)"/>
+                                <PSlider label="Avg Cost per Incident"         value={p.trunktext.avgCostPerIncident}                          onChange={v=>updateRoiInput('trunktext','avgCostPerIncident',v)}           min={500} max={25000} step={500} prefix="$" color="var(--blue)"/>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--blue)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
+                      <CalcBreakdown color="var(--blue)" steps={[
+                        { label:'Field users',        value:p.trunktext.fieldUsersPerProject.toLocaleString() },
+                        { op:'×', label:'Searches / day',    value:p.trunktext.searchesPerDay },
+                        { op:'×', label:'Working days / yr', value:(p.trunktext.workingDaysPerYear||250).toLocaleString() },
+                        { op:'=', label:'Total searches / yr', value:formatNumber(pp.ttSearches), divider:true },
+                        { label:'Time saved / search', value:`${(pp.ttTimeSaved).toFixed(2)} hrs` },
+                        { op:'×', label:'Labor cost',          value:`$${p.trunktext.loadedLaborCost}/hr` },
+                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunktext.hours)} hrs saved)`, value:formatCurrency(pp.ttRetrieval) }}/>
+                      {pp.ttRetrieval > 0 && (
+                        <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
+                          Hours recovered from manual document searches can be reallocated to field walks, QA/QC inspections, and proactive site coordination — reducing contractor congestion and rework downstream.
+                        </div>
+                      )}
+
+                      {p.trunktext.riskAvoidanceEnabled && pp.ttRisk > 0 && (
+                        <>
+                          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
+                          <CalcBreakdown color="var(--blue)" steps={[
+                            { label:'Total searches / yr',  value:formatNumber(pp.ttSearches) },
+                            { op:'×', label:'% with wrong info',    value:`${(p.trunktext.pctSearchesWithWrongInfo*100).toFixed(1)}%` },
+                            { op:'×', label:'% prevented',          value:`${Math.round(p.trunktext.pctPreventedByTrunkText*100)}%` },
+                            { op:'×', label:'Cost per incident',    value:`$${p.trunktext.avgCostPerIncident.toLocaleString()}` },
+                          ]} total={{ label:'Risk avoidance', value:formatCurrency(pp.ttRisk) }}/>
+                        </>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── TrunkSubmittal Card ── */}
+                  {ep.trunksubmittal && (
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #4aedb5' }}>
+                      <h4 style={{ color:'var(--green)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
+
+                      <PSlider label="Submittals / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={5000} step={50} color="var(--green)"/>
+                      <PSlider label="Hours / Review (avg)" value={p.trunksubmittal.hoursPerReview} onChange={v=>updateRoiInput('trunksubmittal','hoursPerReview',v)} min={0.25} max={8} step={0.25} color="var(--green)"
+                        tooltip={
+                          <div>
+                            <div style={{ fontWeight:600, marginBottom:6, color:'var(--text-primary)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.04em' }}>Where the time goes:</div>
+                            {[['~5–10 min','Open submittal package, check cover sheet'],['~5–10 min','Cross-reference against spec requirements'],['~5–10 min','Review product data sheets & technical specs'],['~5–10 min','Verify compliance with contract drawings'],['~3–5 min','Check shop drawing dimensions & tolerances'],['~3–5 min','Review certifications & test reports'],['~3–5 min','Write review comments & note exceptions'],['~2–5 min','Log action & distribute']].map(([time,desc],i) => (
+                              <div key={i} style={{ display:'flex', gap:8, padding:'3px 0', borderBottom:i<7?'1px solid var(--border-light)':'none' }}>
+                                <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--green)', fontWeight:600, flexShrink:0, minWidth:62 }}>{time}</span>
+                                <span style={{ fontSize:11 }}>{desc}</span>
+                              </div>
+                            ))}
+                            <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~30–60 min for a typical submittal review</div>
+                          </div>
+                        }/>
+                      <PSlider label="Time Reduction"     value={Math.round(p.trunksubmittal.timeReductionPct*100)} onChange={v=>updateRoiInput('trunksubmittal','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--green)"/>
+                      <PSlider label="Rework Rate"         value={+(p.trunksubmittal.reworkRate*100).toFixed(1)}    onChange={v=>updateRoiInput('trunksubmittal','reworkRate',v/100)}         min={1}  max={10} step={0.5} suffix="%" color="var(--green)"/>
+                      <PSlider label="Errors Caught"       value={Math.round(p.trunksubmittal.pctErrorsCaught*100)} onChange={v=>updateRoiInput('trunksubmittal','pctErrorsCaught',v/100)}    min={10} max={80} step={5} suffix="%" color="var(--green)"/>
+
+                      <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunksubmittal:!prev.trunksubmittal}))}
+                        style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
+                        <span style={{ transition:'transform 180ms ease', transform:showAdvanced.trunksubmittal?'rotate(90deg)':'rotate(0deg)', fontSize:10 }}>▶</span>
+                        Advanced Assumptions
+                      </button>
+                      {showAdvanced.trunksubmittal && (
+                        <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
+                          <PSlider label="Reviewer Cost"       value={p.trunksubmittal.reviewerCost}           onChange={v=>updateRoiInput('trunksubmittal','reviewerCost',v)}           min={25} max={150} step={5}   prefix="$" suffix="/hr" color="var(--green)"/>
+                          <PSlider label="% Rework from Errors" value={Math.round(p.trunksubmittal.pctReworkFromErrors*100)} onChange={v=>updateRoiInput('trunksubmittal','pctReworkFromErrors',v/100)} min={10} max={80} step={5} suffix="%" color="var(--green)"/>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--green)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
+                      <CalcBreakdown color="var(--green)" steps={[
+                        { label:'Submittals / yr',    value:p.trunksubmittal.submittalsPerYear.toLocaleString() },
+                        { op:'×', label:'Hours / review',    value:p.trunksubmittal.hoursPerReview },
+                        { op:'×', label:'Time reduction',    value:`${Math.round(p.trunksubmittal.timeReductionPct*100)}%` },
+                        { op:'×', label:'Reviewer cost',     value:`$${p.trunksubmittal.reviewerCost}/hr` },
+                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunksubmittal.hours)} hrs saved)`, value:formatCurrency(pp.tsLabor) }}/>
+                      {pp.tsLabor > 0 && (
+                        <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
+                          Recovered submittal review hours allow PEs and PMs to focus on field walks, RFI resolution, and contractor coordination — improving QA/QC and reducing schedule risk.
+                        </div>
+                      )}
+
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
+                      <CalcBreakdown color="var(--green)" steps={[
+                        { label:'Avg project value',   value:formatCurrency(avgProjectSizeM*1e6) },
+                        { op:'×', label:'Rework rate',          value:`${(p.trunksubmittal.reworkRate*100).toFixed(1)}%` },
+                        { op:'×', label:'% from errors',        value:`${Math.round(p.trunksubmittal.pctReworkFromErrors*100)}%` },
+                        { op:'×', label:'Errors caught',        value:`${Math.round(p.trunksubmittal.pctErrorsCaught*100)}%` },
+                      ]} total={{ label:'Rework avoidance', value:formatCurrency(pp.tsRework) }}/>
+                    </div>
+                  )}
+
+                  {/* ── TrunkReview Card ── */}
+                  {ep.trunkreview && (
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #c0adff' }}>
+                      <h4 style={{ color:'var(--purple)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkReview</h4>
+
+                      <PSlider label="Drawing Sets / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)"/>
+                      <PSlider label="Hours / Review"            value={p.trunkreview.hoursPerReview}           onChange={v=>updateRoiInput('trunkreview','hoursPerReview',v)}           min={1}    max={20}    step={1}   color="var(--purple)"
+                        tooltip={
+                          <div>
+                            <div style={{ fontWeight:600, marginBottom:6, color:'var(--text-primary)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.04em' }}>Typical bulletin / addendum review workflow:</div>
+                            {[['~15–30 min','Receipt of new bulletin/addendum from EOR — log, tag, and route to team'],['~15–30 min','Open documents to scan which drawings have clouds indicating changes'],['~10–20 min','Upload documents to PMS (Procore, etc.)'],['~10–15 min','Share documents to entire internal/external project team'],['~10–15 min','Request contractors begin pricing changes'],['~60–120 min','Compare new bulletin against master drawing set — sheet by sheet'],['~30–60 min','Qualify changes, draft narrative for subs and share'],['~30–45 min','Update master P6 schedule to include schedule impacts from subs'],['~30–60 min','Review change order costs and draft contract supplement'],['~30–60 min','Coordinate and execute work in the field']].map(([time,desc],i) => (
+                              <div key={i} style={{ display:'flex', gap:8, padding:'3px 0', borderBottom:i<9?'1px solid var(--border-light)':'none' }}>
+                                <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--purple)', fontWeight:600, flexShrink:0, minWidth:72 }}>{time}</span>
+                                <span style={{ fontSize:11 }}>{desc}</span>
+                              </div>
+                            ))}
+                            <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~4–8 hrs per bulletin/addendum review cycle. TrunkReview automates the comparison step.</div>
+                          </div>
+                        }/>
+                      <PSlider label="Time Reduction"            value={Math.round(p.trunkreview.timeReductionPct*100)}   onChange={v=>updateRoiInput('trunkreview','timeReductionPct',v/100)}   min={25} max={90}    step={5}   suffix="%" color="var(--purple)"/>
+                      <PSlider label="Unclouded Changes / Set"   value={p.trunkreview.uncloudedChangesPerSet}             onChange={v=>updateRoiInput('trunkreview','uncloudedChangesPerSet',v)}  min={1}  max={25}    step={1}   color="var(--purple)"/>
+                      <PSlider label="Changes Caught"            value={Math.round(p.trunkreview.pctCaughtByTrunkReview*100)} onChange={v=>updateRoiInput('trunkreview','pctCaughtByTrunkReview',v/100)} min={25} max={100} step={5} suffix="%" color="var(--purple)"/>
+                      <PSlider label="Avg Cost / Missed Change"  value={p.trunkreview.avgCostPerMissedChange}              onChange={v=>updateRoiInput('trunkreview','avgCostPerMissedChange',v)}   min={1000} max={50000} step={1000} prefix="$" color="var(--purple)"/>
+
+                      <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunkreview:!prev.trunkreview}))}
+                        style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
+                        <span style={{ transition:'transform 180ms ease', transform:showAdvanced.trunkreview?'rotate(90deg)':'rotate(0deg)', fontSize:10 }}>▶</span>
+                        Advanced Assumptions
+                      </button>
+                      {showAdvanced.trunkreview && (
+                        <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
+                          <PSlider label="Reviewer Cost"             value={p.trunkreview.reviewerCost}                  onChange={v=>updateRoiInput('trunkreview','reviewerCost',v)}               min={25} max={150} step={5} prefix="$" suffix="/hr" color="var(--purple)"/>
+                          <PSlider label="% Changes with Cost Impact" value={Math.round(p.trunkreview.pctChangesWithCostImpact*100)} onChange={v=>updateRoiInput('trunkreview','pctChangesWithCostImpact',v/100)} min={10} max={80} step={5} suffix="%" color="var(--purple)"/>
+                        </div>
+                      )}
+
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--purple)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
+                      <CalcBreakdown color="var(--purple)" steps={[
+                        { label:'Drawing sets / yr',  value:p.trunkreview.drawingSetsPerYear },
+                        { op:'×', label:'Hours / review',    value:p.trunkreview.hoursPerReview },
+                        { op:'×', label:'Time reduction',    value:`${Math.round(p.trunkreview.timeReductionPct*100)}%` },
+                        { op:'×', label:'Reviewer cost',     value:`$${p.trunkreview.reviewerCost}/hr` },
+                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunkreview.hours)} hrs saved)`, value:formatCurrency(pp.trLabor) }}/>
+                      {pp.trLabor > 0 && (
+                        <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
+                          Time recovered from automated drawing comparison can be redirected to field coordination, subcontractor oversight, and proactive change management — reducing congestion and schedule delays.
+                        </div>
+                      )}
+
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
+                      <CalcBreakdown color="var(--purple)" steps={[
+                        { label:'Drawing sets / yr',      value:p.trunkreview.drawingSetsPerYear },
+                        { op:'×', label:'Changes / set',          value:p.trunkreview.uncloudedChangesPerSet },
+                        { op:'×', label:'% caught',               value:`${Math.round(p.trunkreview.pctCaughtByTrunkReview*100)}%` },
+                        { op:'×', label:'% with cost impact',     value:`${Math.round(p.trunkreview.pctChangesWithCostImpact*100)}%` },
+                        { op:'×', label:'Avg cost / miss',        value:`$${p.trunkreview.avgCostPerMissedChange.toLocaleString()}` },
+                      ]} total={{ label:'Missed change avoidance', value:formatCurrency(pp.trChanges) }}/>
+                    </div>
+                  )}
+                </div>
+
+                {/* Methodology note */}
+                <div style={{ padding:'12px 18px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)', fontSize:11, color:'var(--text-muted)', lineHeight:1.7 }}>
+                  <span style={{ fontWeight:600, color:'var(--text-secondary)' }}>Methodology — </span>
+                  First-order value: labor hours recovered from automation × fully loaded hourly cost. Second-order value: rework avoidance (TrunkSubmittal) and missed drawing change detection (TrunkReview). All assumptions are configurable above. Results represent potential value; actual outcomes depend on deployment scope and team adoption.
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ══ RIGHT: Your ROI (sticky results panel) ══ */}
+          <div style={{ position:'sticky', top:72, display:'flex', flexDirection:'column', gap:16 }}>
+            {/* Section label */}
+            <div style={{ display:'flex', alignItems:'center', gap:12, paddingBottom:12, borderBottom:'1px solid var(--border-light)' }}>
+              <div style={{ width:4, height:34, borderRadius:2, background:'var(--green)', flexShrink:0 }}/>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'var(--text-primary)', letterSpacing:'-0.01em' }}>Your ROI</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>Live results based on your inputs</div>
+              </div>
+            </div>
+
+            {c.totalAnnual === 0 ? (
+              <div style={{ padding:'40px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13, background:'var(--bg-card)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)', lineHeight:1.8 }}>
+                Enable solutions above and configure your portfolio<br/>to see your ROI results here.
+              </div>
+            ) : (
+              <div className="fade-in" style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+                {/* Value Breakdown */}
+                <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:20, border:'1px solid var(--border)' }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:14 }}>Value Breakdown</div>
+
+                  {(() => {
+                    const first  = (c.trunktext?.retrieval||0) + (c.trunksubmittal?.labor||0) + (c.trunkreview?.labor||0);
+                    const second = (c.trunktext?.riskAvoidance||0) + (c.trunksubmittal?.rework||0) + (c.trunkreview?.changes||0);
+                    return (
+                      <>
+                        {first > 0 && (
+                          <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
+                            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>1st Order — Labor</span>
+                            <span style={{ fontFamily:'var(--font-mono)', fontWeight:700, color:'var(--blue)', fontSize:13 }}>{formatCurrency(first)}</span>
+                          </div>
+                        )}
+                        {second > 0 && (
+                          <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
+                            <span style={{ fontSize:12, color:'var(--text-secondary)' }}>2nd Order — Cost Avoidance</span>
+                            <span style={{ fontFamily:'var(--font-mono)', fontWeight:700, color:'var(--green)', fontSize:13 }}>{formatCurrency(second)}</span>
+                          </div>
+                        )}
+                        <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
+                          <span style={{ fontSize:12, color:'var(--text-muted)' }}>Hours recovered</span>
+                          <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--text-primary)', fontSize:13 }}>{formatNumber(c.totalHours)} hrs</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+
+                  <div style={{ marginTop:10, display:'flex', flexDirection:'column', gap:5 }}>
+                    {ep.trunktext && c.trunktext.total > 0 && (
+                      <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--blue-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(109,179,255,0.2)' }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--blue)', fontFamily:'var(--font-mono)' }}>TrunkText</span>
+                        <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunktext.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
+                      </div>
+                    )}
+                    {ep.trunksubmittal && c.trunksubmittal.total > 0 && (
+                      <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--green-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(74,237,181,0.2)' }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--green)', fontFamily:'var(--font-mono)' }}>TrunkSubmittal</span>
+                        <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunksubmittal.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
+                      </div>
+                    )}
+                    {ep.trunkreview && c.trunkreview.total > 0 && (
+                      <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--purple-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(192,173,255,0.2)' }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--purple)', fontFamily:'var(--font-mono)' }}>TrunkReview</span>
+                        <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunkreview.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ marginTop:12, paddingTop:12, borderTop:'2px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:2 }}>Total Annual Value</div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)' }}>{formatCurrency(c.valuePerProject)} / project</div>
+                    </div>
+                    <div style={{ fontSize:30, fontWeight:700, color:'var(--green)', fontFamily:'var(--font-mono)', letterSpacing:'-0.02em' }}>{formatCurrency(c.totalAnnual)}</div>
+                  </div>
+                </div>
+
+                {/* Cost of Doing Nothing */}
+                <div style={{ background:'linear-gradient(135deg,rgba(255,112,112,0.1),rgba(255,112,112,0.04))', border:'1.5px solid rgba(255,112,112,0.35)', borderRadius:'var(--radius-lg)', padding:24, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', textAlign:'center', gap:8 }}>
+                  <div style={{ fontSize:11, fontWeight:700, color:'var(--red)', textTransform:'uppercase', letterSpacing:'0.1em' }}>Cost of Doing Nothing</div>
+                  <div style={{ fontSize:11, color:'var(--red)', opacity:0.75 }}>per month of inaction</div>
+                  <div style={{ fontSize:48, fontWeight:700, color:'var(--red)', fontFamily:'var(--font-mono)', letterSpacing:'-0.03em', lineHeight:1, margin:'8px 0' }}>
+                    {formatCurrency(c.monthlyCost)}
+                  </div>
+                  <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.6, maxWidth:280 }}>
+                    In unrealized value every month you wait — equal to <span style={{ color:'var(--text-secondary)', fontWeight:600 }}>{formatCurrency(c.totalAnnual)}</span> per year left on the table.
+                  </div>
+                  <div style={{ marginTop:6, padding:'7px 18px', background:'rgba(255,112,112,0.1)', border:'1px solid rgba(255,112,112,0.2)', borderRadius:'var(--radius-xl)', fontSize:12, fontFamily:'var(--font-mono)', color:'var(--red)' }}>
+                    {formatCurrency(c.monthlyCost * 3)} / quarter &nbsp;·&nbsp; {formatCurrency(c.totalAnnual)} / year
+                  </div>
+                </div>
+
+              </div>
+            )}
+          </div>
+
+        </div>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.render(<App />, document.getElementById('root'));
+</script>
+</body>
+</html>
