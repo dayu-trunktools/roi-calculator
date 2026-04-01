@@ -240,11 +240,11 @@ function StatBox({ label, value, sub, color, style:sx }) {
 }
 
 /* ─── NumBox (portfolio inputs) ───────────────────────────── */
-function NumBox({ label, value, onChange, prefix, suffix, min=1, step=1 }) {
+function NumBox({ label, value, onChange, prefix, suffix, min=1, step=1, tooltip }) {
   const id = useRef(`nb-${Math.random().toString(36).slice(2)}`).current;
   return (
     <div>
-      <label htmlFor={id} style={{ display:'block', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>{label}</label>
+      <label htmlFor={id} style={{ display:'flex', alignItems:'center', fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>{label}{tooltip && <InfoTooltip text={tooltip}/>}</label>
       <div style={{ display:'flex', alignItems:'center', gap:5, background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', padding:'8px 14px', transition:'border-color var(--transition)' }}
         onFocusCapture={e=>e.currentTarget.style.borderColor='var(--accent)'}
         onBlurCapture={e=>e.currentTarget.style.borderColor='var(--border)'}>
@@ -601,8 +601,8 @@ function App() {
 
         {/* Portfolio Inputs + Product Toggles — full width */}
         <div style={{ display:'flex', gap:16, marginBottom:24, alignItems:'flex-end', flexWrap:'wrap', background:'var(--bg-surface)', borderRadius:'var(--radius-lg)', border:'1px solid var(--border)', padding:'18px 24px' }}>
-          <NumBox label="# of Projects"   value={numProjects}     onChange={v=>setNumProjects(Math.max(1,Math.round(v)))} min={1}/>
-          <NumBox label="Avg Project Size" value={avgProjectSizeM} onChange={v=>setAvgProjectSizeM(Math.max(1,v))} prefix="$" suffix="M" min={1} step={5}/>
+          <NumBox label="# of Projects"   value={numProjects}     onChange={v=>setNumProjects(Math.max(1,Math.round(v)))} min={1} tooltip="Number of active projects in your portfolio that will use Trunk Tools. This is the main scaling factor — every per-project ROI value is multiplied by this number to produce your total annual figures."/>
+          <NumBox label="Avg Project Size" value={avgProjectSizeM} onChange={v=>setAvgProjectSizeM(Math.max(1,v))} prefix="$" suffix="M" min={1} step={5} tooltip="Average construction value per project in millions. Used to calculate 2nd order (cost avoidance) values: TrunkSubmittal rework is modeled as a % of project value, and TrunkReview missed-change costs scale with project size. Does not affect 1st order labor calculations."/>
           <div style={{ padding:'8px 18px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)', height:54, display:'flex', flexDirection:'column', justifyContent:'center' }}>
             <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Total Portfolio</div>
             <div style={{ fontSize:16, fontWeight:700, fontFamily:'var(--font-mono)', color:'var(--text-secondary)' }}>{formatCurrency(numProjects * avgProjectSizeM * 1e6)}</div>
@@ -651,8 +651,8 @@ function App() {
                     <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #6db3ff' }}>
                       <h4 style={{ color:'var(--blue)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkText</h4>
 
-                      <PSlider label="Field Users / Project" value={p.trunktext.fieldUsersPerProject} onChange={v=>updateRoiInput('trunktext','fieldUsersPerProject',v)} min={1} max={300} step={1} color="var(--blue)"/>
-                      <PSlider label="Searches / Day / User"  value={p.trunktext.searchesPerDay}          onChange={v=>updateRoiInput('trunktext','searchesPerDay',v)}          min={1} max={20}  step={1} color="var(--blue)"/>
+                      <PSlider label="Field Users / Project" value={p.trunktext.fieldUsersPerProject} onChange={v=>updateRoiInput('trunktext','fieldUsersPerProject',v)} min={1} max={300} step={1} color="var(--blue)" tooltip="Number of people per project who search for documents using Trunk Tools — typically field superintendents, project engineers, PMs, and foremen. More users = more searches = more time saved. This multiplies directly into the 1st order calculation."/>
+                      <PSlider label="Searches / Day / User"  value={p.trunktext.searchesPerDay}          onChange={v=>updateRoiInput('trunktext','searchesPerDay',v)}          min={1} max={20}  step={1} color="var(--blue)" tooltip="How many times per day each field user looks up project information (drawings, specs, RFIs, submittals, etc.). Industry average is 2–5. Even at 2 searches/day, the cumulative hours across a large field team are significant."/>
                       <PSlider label="Current Search Time"    value={p.trunktext.currentSearchTime}       onChange={v=>updateRoiInput('trunktext','currentSearchTime',v)}       min={5} max={60}  step={1} suffix=" min" color="var(--blue)"
                         tooltip={
                           <div>
@@ -676,7 +676,7 @@ function App() {
                         <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
                           <PSlider label="TrunkText Search Time"  value={p.trunktext.trunkTextSearchTime}  onChange={v=>updateRoiInput('trunktext','trunkTextSearchTime',v)}  min={0.5} max={10}  step={0.5} suffix=" min" color="var(--blue)" tooltip="How long a search takes with TrunkText AI. Default 1 minute."/>
                           <PSlider label="Loaded Labor Cost"      value={p.trunktext.loadedLaborCost}      onChange={v=>updateRoiInput('trunktext','loadedLaborCost',v)}      min={25}  max={150} step={5}   prefix="$" suffix="/hr" color="var(--blue)" tooltip="Fully loaded hourly cost of a field worker."/>
-                          <PSlider label="Working Days / Year"    value={p.trunktext.workingDaysPerYear||250} onChange={v=>updateRoiInput('trunktext','workingDaysPerYear',v)} min={200} max={300} step={5} color="var(--blue)"/>
+                          <PSlider label="Working Days / Year"    value={p.trunktext.workingDaysPerYear||250} onChange={v=>updateRoiInput('trunktext','workingDaysPerYear',v)} min={200} max={300} step={5} color="var(--blue)" tooltip="Billable working days per year on this type of project. 250 is standard (52 weeks × 5 days minus holidays). Adjust down for shorter project cycles, seasonal shutdowns, or markets with more holidays."/>
                           <div style={{ marginTop:12, padding:'12px 14px', background:'var(--bg-input)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)' }}>
                             <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', marginBottom:p.trunktext.riskAvoidanceEnabled?12:0 }}>
                               <input type="checkbox" checked={!!p.trunktext.riskAvoidanceEnabled} onChange={()=>setRoiInputs(prev=>({...prev,trunktext:{...prev.trunktext,riskAvoidanceEnabled:!prev.trunktext.riskAvoidanceEnabled}}))}/>
@@ -687,9 +687,9 @@ function App() {
                             </label>
                             {p.trunktext.riskAvoidanceEnabled && (
                               <div style={{ borderTop:'1px solid var(--border-light)', paddingTop:8 }}>
-                                <PSlider label="% Searches with Wrong Info"    value={+(p.trunktext.pctSearchesWithWrongInfo*100).toFixed(1)} onChange={v=>updateRoiInput('trunktext','pctSearchesWithWrongInfo',v/100)} min={1} max={15} step={0.5} suffix="%" color="var(--blue)"/>
-                                <PSlider label="% Prevented by TrunkText"     value={Math.round(p.trunktext.pctPreventedByTrunkText*100)}    onChange={v=>updateRoiInput('trunktext','pctPreventedByTrunkText',v/100)} min={20} max={95} step={5} suffix="%" color="var(--blue)"/>
-                                <PSlider label="Avg Cost per Incident"         value={p.trunktext.avgCostPerIncident}                          onChange={v=>updateRoiInput('trunktext','avgCostPerIncident',v)}           min={500} max={25000} step={500} prefix="$" color="var(--blue)"/>
+                                <PSlider label="% Searches with Wrong Info"    value={+(p.trunktext.pctSearchesWithWrongInfo*100).toFixed(1)} onChange={v=>updateRoiInput('trunktext','pctSearchesWithWrongInfo',v/100)} min={1} max={15} step={0.5} suffix="%" color="var(--blue)" tooltip="What percentage of document searches result in someone acting on outdated or incorrect information — wrong revision, superseded spec, stale RFI response. Industry studies suggest 3–8%. Even a small % matters at scale when multiplied across hundreds of searches per day."/>
+                                <PSlider label="% Prevented by TrunkText"     value={Math.round(p.trunktext.pctPreventedByTrunkText*100)}    onChange={v=>updateRoiInput('trunktext','pctPreventedByTrunkText',v/100)} min={20} max={95} step={5} suffix="%" color="var(--blue)" tooltip="Of the searches that would have returned wrong information, what fraction does TrunkText prevent by always surfacing the latest document version with full version history. Conservative estimates are 50–70%; higher with strong adoption."/>
+                                <PSlider label="Avg Cost per Incident"         value={p.trunktext.avgCostPerIncident}                          onChange={v=>updateRoiInput('trunktext','avgCostPerIncident',v)}           min={500} max={25000} step={500} prefix="$" color="var(--blue)" tooltip="Average cost of a single incident caused by acting on wrong information. Range: $500 (minor rework or re-order) to $25K+ (structural, MEP, or envelope errors requiring demolition and rebuild). Use your own incident history for the most accurate estimate."/>
                               </div>
                             )}
                           </div>
@@ -730,7 +730,7 @@ function App() {
                     <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #4aedb5' }}>
                       <h4 style={{ color:'var(--green)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
 
-                      <PSlider label="Submittals / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={5000} step={50} color="var(--green)"/>
+                      <PSlider label="Submittals / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={5000} step={50} color="var(--green)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
                       <PSlider label="Hours / Review (avg)" value={p.trunksubmittal.hoursPerReview} onChange={v=>updateRoiInput('trunksubmittal','hoursPerReview',v)} min={0.25} max={8} step={0.25} color="var(--green)"
                         tooltip={
                           <div>
@@ -744,9 +744,9 @@ function App() {
                             <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~30–60 min for a typical submittal review</div>
                           </div>
                         }/>
-                      <PSlider label="Time Reduction"     value={Math.round(p.trunksubmittal.timeReductionPct*100)} onChange={v=>updateRoiInput('trunksubmittal','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--green)"/>
-                      <PSlider label="Rework Rate"         value={+(p.trunksubmittal.reworkRate*100).toFixed(1)}    onChange={v=>updateRoiInput('trunksubmittal','reworkRate',v/100)}         min={1}  max={10} step={0.5} suffix="%" color="var(--green)"/>
-                      <PSlider label="Errors Caught"       value={Math.round(p.trunksubmittal.pctErrorsCaught*100)} onChange={v=>updateRoiInput('trunksubmittal','pctErrorsCaught',v/100)}    min={10} max={80} step={5} suffix="%" color="var(--green)"/>
+                      <PSlider label="Time Reduction"     value={Math.round(p.trunksubmittal.timeReductionPct*100)} onChange={v=>updateRoiInput('trunksubmittal','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--green)" tooltip="How much of the review time TrunkSubmittal eliminates by auto-checking specs and flagging non-conformances. 80% means a 45-minute review now takes ~9 minutes. Conservative range is 60–85% depending on submittal complexity and team adoption."/>
+                      <PSlider label="Rework Rate"         value={+(p.trunksubmittal.reworkRate*100).toFixed(1)}    onChange={v=>updateRoiInput('trunksubmittal','reworkRate',v/100)}         min={1}  max={10} step={0.5} suffix="%" color="var(--green)" tooltip="Percentage of total project cost that goes to rework — doing work over because something was wrong. Industry average is 4–12% of project value. This is the starting point for the 2nd order calculation; not all rework comes from submittal errors (see % Rework from Errors in Advanced)."/>
+                      <PSlider label="Errors Caught"       value={Math.round(p.trunksubmittal.pctErrorsCaught*100)} onChange={v=>updateRoiInput('trunksubmittal','pctErrorsCaught',v/100)}    min={10} max={80} step={5} suffix="%" color="var(--green)" tooltip="Of the submittal errors that would otherwise slip through to construction and cause rework, what fraction does TrunkSubmittal catch at review time. This is intentionally conservative — not every flagged issue is a real error, and not every caught error would have caused rework."/>
 
                       <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunksubmittal:!prev.trunksubmittal}))}
                         style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
@@ -755,8 +755,8 @@ function App() {
                       </button>
                       {showAdvanced.trunksubmittal && (
                         <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
-                          <PSlider label="Reviewer Cost"       value={p.trunksubmittal.reviewerCost}           onChange={v=>updateRoiInput('trunksubmittal','reviewerCost',v)}           min={25} max={150} step={5}   prefix="$" suffix="/hr" color="var(--green)"/>
-                          <PSlider label="% Rework from Errors" value={Math.round(p.trunksubmittal.pctReworkFromErrors*100)} onChange={v=>updateRoiInput('trunksubmittal','pctReworkFromErrors',v/100)} min={10} max={80} step={5} suffix="%" color="var(--green)"/>
+                          <PSlider label="Reviewer Cost"       value={p.trunksubmittal.reviewerCost}           onChange={v=>updateRoiInput('trunksubmittal','reviewerCost',v)}           min={25} max={150} step={5}   prefix="$" suffix="/hr" color="var(--green)" tooltip="Fully loaded hourly cost of the person reviewing submittals — typically a PE, senior PM, or project engineer. Includes salary, benefits, and overhead. $50/hr is conservative; senior engineers in high-cost markets run $80–120/hr."/>
+                          <PSlider label="% Rework from Errors" value={Math.round(p.trunksubmittal.pctReworkFromErrors*100)} onChange={v=>updateRoiInput('trunksubmittal','pctReworkFromErrors',v/100)} min={10} max={80} step={5} suffix="%" color="var(--green)" tooltip="Of all project rework costs, what percentage is specifically attributable to submittal errors (wrong product approved, non-compliant material installed, etc.) vs. field execution errors or design changes. Industry range is 20–40%."/>
                         </div>
                       )}
 
@@ -788,7 +788,7 @@ function App() {
                     <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #c0adff' }}>
                       <h4 style={{ color:'var(--purple)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkReview</h4>
 
-                      <PSlider label="Drawing Sets / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)"/>
+                      <PSlider label="Drawing Sets / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)" tooltip="Number of bulletin or addendum drawing sets received per year on this project. Active commercial projects typically receive 12–36 bulletins annually, each requiring a full comparison against the master set. Each bulletin is a review cycle."/>
                       <PSlider label="Hours / Review"            value={p.trunkreview.hoursPerReview}           onChange={v=>updateRoiInput('trunkreview','hoursPerReview',v)}           min={1}    max={20}    step={1}   color="var(--purple)"
                         tooltip={
                           <div>
@@ -802,10 +802,10 @@ function App() {
                             <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~4–8 hrs per bulletin/addendum review cycle. TrunkReview automates the comparison step.</div>
                           </div>
                         }/>
-                      <PSlider label="Time Reduction"            value={Math.round(p.trunkreview.timeReductionPct*100)}   onChange={v=>updateRoiInput('trunkreview','timeReductionPct',v/100)}   min={25} max={90}    step={5}   suffix="%" color="var(--purple)"/>
-                      <PSlider label="Unclouded Changes / Set"   value={p.trunkreview.uncloudedChangesPerSet}             onChange={v=>updateRoiInput('trunkreview','uncloudedChangesPerSet',v)}  min={1}  max={25}    step={1}   color="var(--purple)"/>
-                      <PSlider label="Changes Caught"            value={Math.round(p.trunkreview.pctCaughtByTrunkReview*100)} onChange={v=>updateRoiInput('trunkreview','pctCaughtByTrunkReview',v/100)} min={25} max={100} step={5} suffix="%" color="var(--purple)"/>
-                      <PSlider label="Avg Cost / Missed Change"  value={p.trunkreview.avgCostPerMissedChange}              onChange={v=>updateRoiInput('trunkreview','avgCostPerMissedChange',v)}   min={1000} max={50000} step={1000} prefix="$" color="var(--purple)"/>
+                      <PSlider label="Time Reduction"            value={Math.round(p.trunkreview.timeReductionPct*100)}   onChange={v=>updateRoiInput('trunkreview','timeReductionPct',v/100)}   min={25} max={90}    step={5}   suffix="%" color="var(--purple)" tooltip="How much of the drawing review and comparison time TrunkReview eliminates. 75% means what took 8 hours now takes 2. The bulk of the savings comes from automating the sheet-by-sheet comparison step, which is the most time-consuming part of any bulletin review."/>
+                      <PSlider label="Unclouded Changes / Set"   value={p.trunkreview.uncloudedChangesPerSet}             onChange={v=>updateRoiInput('trunkreview','uncloudedChangesPerSet',v)}  min={1}  max={25}    step={1}   color="var(--purple)" tooltip="Number of real drawing changes per bulletin that were NOT marked with a cloud or delta symbol by the engineer. These are the most dangerous changes — teams doing manual reviews almost always miss them. TrunkReview's core value is catching exactly these."/>
+                      <PSlider label="Changes Caught"            value={Math.round(p.trunkreview.pctCaughtByTrunkReview*100)} onChange={v=>updateRoiInput('trunkreview','pctCaughtByTrunkReview',v/100)} min={25} max={100} step={5} suffix="%" color="var(--purple)" tooltip="Percentage of unclouded changes that TrunkReview's AI detects through pixel-level drawing comparison. This is the core capability — catching what a human reviewer would miss during a fast visual scan of a 200-sheet set."/>
+                      <PSlider label="Avg Cost / Missed Change"  value={p.trunkreview.avgCostPerMissedChange}              onChange={v=>updateRoiInput('trunkreview','avgCostPerMissedChange',v)}   min={1000} max={50000} step={1000} prefix="$" color="var(--purple)" tooltip="Average cost when a drawing change goes undetected and the field executes on the old design. Range: $1K (minor coordination fix) to $50K+ (structural, MEP, or envelope changes that require demolition and rebuild once discovered). Use your own project history for the most accurate number."/>
 
                       <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunkreview:!prev.trunkreview}))}
                         style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
@@ -814,8 +814,8 @@ function App() {
                       </button>
                       {showAdvanced.trunkreview && (
                         <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
-                          <PSlider label="Reviewer Cost"             value={p.trunkreview.reviewerCost}                  onChange={v=>updateRoiInput('trunkreview','reviewerCost',v)}               min={25} max={150} step={5} prefix="$" suffix="/hr" color="var(--purple)"/>
-                          <PSlider label="% Changes with Cost Impact" value={Math.round(p.trunkreview.pctChangesWithCostImpact*100)} onChange={v=>updateRoiInput('trunkreview','pctChangesWithCostImpact',v/100)} min={10} max={80} step={5} suffix="%" color="var(--purple)"/>
+                          <PSlider label="Reviewer Cost"             value={p.trunkreview.reviewerCost}                  onChange={v=>updateRoiInput('trunkreview','reviewerCost',v)}               min={25} max={150} step={5} prefix="$" suffix="/hr" color="var(--purple)" tooltip="Fully loaded hourly cost of the person doing drawing reviews — typically a PE, senior PM, or VDC engineer. Includes salary, benefits, and overhead. This multiplies against the hours saved by TrunkReview's automated comparison."/>
+                          <PSlider label="% Changes with Cost Impact" value={Math.round(p.trunkreview.pctChangesWithCostImpact*100)} onChange={v=>updateRoiInput('trunkreview','pctChangesWithCostImpact',v/100)} min={10} max={80} step={5} suffix="%" color="var(--purple)" tooltip="Of all unclouded changes TrunkReview catches, what percentage actually have a real cost impact if missed — vs. minor clarifications or notes that wouldn't affect construction. Conservative estimates are 40–60%. Only these changes feed into the 2nd order cost calculation."/>
                         </div>
                       )}
 
