@@ -896,6 +896,13 @@ function App() {
                           <span style={{ fontSize:12, color:'var(--text-muted)' }}>Hours recovered</span>
                           <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--text-primary)', fontSize:13 }}>{formatNumber(c.totalHours)} hrs</span>
                         </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', padding:'7px 0', borderBottom:'1px solid var(--border-light)' }}>
+                          <span style={{ fontSize:12, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:5 }}>
+                            FTE equivalent
+                            <InfoTooltip text="Full-time equivalent employees: total hours recovered ÷ 2,000 (250 working days × 8 hrs/day). Represents the productivity headcount freed up — these hours can be redeployed to higher-value work rather than hiring additional staff."/>
+                          </span>
+                          <span style={{ fontFamily:'var(--font-mono)', fontWeight:600, color:'var(--accent)', fontSize:13 }}>{(c.totalHours / 2000).toFixed(1)} FTEs</span>
+                        </div>
                       </>
                     );
                   })()}
