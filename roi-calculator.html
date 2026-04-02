@@ -704,7 +704,13 @@ function App() {
                         { op:'=', label:'Total searches / yr', value:formatNumber(pp.ttSearches), divider:true },
                         { label:'Time saved / search', value:`${(pp.ttTimeSaved).toFixed(2)} hrs` },
                         { op:'×', label:'Labor cost',          value:`$${p.trunktext.loadedLaborCost}/hr` },
-                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunktext.hours)} hrs saved)`, value:formatCurrency(pp.ttRetrieval) }}/>
+                      ]} total={{ label:`Per project · ${formatNumber(pp.ttSearches * pp.ttTimeSaved)} hrs saved`, value:formatCurrency(pp.ttRetrieval) }}/>
+                      {pp.ttRetrieval > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--blue-muted)', border:'1px solid rgba(109,179,255,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.ttRetrieval)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                          <span style={{ color:'var(--blue)', fontWeight:700 }}>= {formatCurrency(c.trunktext.retrieval)}/yr</span>
+                        </div>
+                      )}
                       {pp.ttRetrieval > 0 && (
                         <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
                           Hours recovered from manual document searches can be reallocated to field walks, QA/QC inspections, and proactive site coordination — reducing contractor congestion and rework downstream.
@@ -719,7 +725,13 @@ function App() {
                             { op:'×', label:'% with wrong info',    value:`${(p.trunktext.pctSearchesWithWrongInfo*100).toFixed(1)}%` },
                             { op:'×', label:'% prevented',          value:`${Math.round(p.trunktext.pctPreventedByTrunkText*100)}%` },
                             { op:'×', label:'Cost per incident',    value:`$${p.trunktext.avgCostPerIncident.toLocaleString()}` },
-                          ]} total={{ label:'Risk avoidance', value:formatCurrency(pp.ttRisk) }}/>
+                          ]} total={{ label:'Risk avoidance (per project)', value:formatCurrency(pp.ttRisk) }}/>
+                          {pp.ttRisk > 0 && (
+                            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--blue-muted)', border:'1px solid rgba(109,179,255,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                              <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.ttRisk)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                              <span style={{ color:'var(--blue)', fontWeight:700 }}>= {formatCurrency(c.trunktext.riskAvoidance)}/yr</span>
+                            </div>
+                          )}
                         </>
                       )}
                     </div>
@@ -766,7 +778,13 @@ function App() {
                         { op:'×', label:'Hours / review',    value:p.trunksubmittal.hoursPerReview },
                         { op:'×', label:'Time reduction',    value:`${Math.round(p.trunksubmittal.timeReductionPct*100)}%` },
                         { op:'×', label:'Reviewer cost',     value:`$${p.trunksubmittal.reviewerCost}/hr` },
-                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunksubmittal.hours)} hrs saved)`, value:formatCurrency(pp.tsLabor) }}/>
+                      ]} total={{ label:`Per project · ${formatNumber(pp.tsHrsSaved)} hrs saved`, value:formatCurrency(pp.tsLabor) }}/>
+                      {pp.tsLabor > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--green-muted)', border:'1px solid rgba(74,237,181,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.tsLabor)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                          <span style={{ color:'var(--green)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.labor)}/yr</span>
+                        </div>
+                      )}
                       {pp.tsLabor > 0 && (
                         <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
                           Recovered submittal review hours allow PEs and PMs to focus on field walks, RFI resolution, and contractor coordination — improving QA/QC and reducing schedule risk.
@@ -779,7 +797,13 @@ function App() {
                         { op:'×', label:'Rework rate',          value:`${(p.trunksubmittal.reworkRate*100).toFixed(1)}%` },
                         { op:'×', label:'% from errors',        value:`${Math.round(p.trunksubmittal.pctReworkFromErrors*100)}%` },
                         { op:'×', label:'Errors caught',        value:`${Math.round(p.trunksubmittal.pctErrorsCaught*100)}%` },
-                      ]} total={{ label:'Rework avoidance', value:formatCurrency(pp.tsRework) }}/>
+                      ]} total={{ label:'Rework avoidance (per project)', value:formatCurrency(pp.tsRework) }}/>
+                      {pp.tsRework > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 2px', padding:'5px 12px', background:'var(--green-muted)', border:'1px solid rgba(74,237,181,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.tsRework)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                          <span style={{ color:'var(--green)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.rework)}/yr</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -825,7 +849,13 @@ function App() {
                         { op:'×', label:'Hours / review',    value:p.trunkreview.hoursPerReview },
                         { op:'×', label:'Time reduction',    value:`${Math.round(p.trunkreview.timeReductionPct*100)}%` },
                         { op:'×', label:'Reviewer cost',     value:`$${p.trunkreview.reviewerCost}/hr` },
-                      ]} total={{ label:`Attributable to labor (${formatNumber(c.trunkreview.hours)} hrs saved)`, value:formatCurrency(pp.trLabor) }}/>
+                      ]} total={{ label:`Per project · ${formatNumber(pp.trHrsSaved)} hrs saved`, value:formatCurrency(pp.trLabor) }}/>
+                      {pp.trLabor > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--purple-muted)', border:'1px solid rgba(192,173,255,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.trLabor)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                          <span style={{ color:'var(--purple)', fontWeight:700 }}>= {formatCurrency(c.trunkreview.labor)}/yr</span>
+                        </div>
+                      )}
                       {pp.trLabor > 0 && (
                         <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5, padding:'6px 16px', marginTop:2, fontStyle:'italic' }}>
                           Time recovered from automated drawing comparison can be redirected to field coordination, subcontractor oversight, and proactive change management — reducing congestion and schedule delays.
@@ -839,7 +869,13 @@ function App() {
                         { op:'×', label:'% caught',               value:`${Math.round(p.trunkreview.pctCaughtByTrunkReview*100)}%` },
                         { op:'×', label:'% with cost impact',     value:`${Math.round(p.trunkreview.pctChangesWithCostImpact*100)}%` },
                         { op:'×', label:'Avg cost / miss',        value:`$${p.trunkreview.avgCostPerMissedChange.toLocaleString()}` },
-                      ]} total={{ label:'Missed change avoidance', value:formatCurrency(pp.trChanges) }}/>
+                      ]} total={{ label:'Missed change avoidance (per project)', value:formatCurrency(pp.trChanges) }}/>
+                      {pp.trChanges > 0 && (
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 2px', padding:'5px 12px', background:'var(--purple-muted)', border:'1px solid rgba(192,173,255,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.trChanges)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
+                          <span style={{ color:'var(--purple)', fontWeight:700 }}>= {formatCurrency(c.trunkreview.changes)}/yr</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
