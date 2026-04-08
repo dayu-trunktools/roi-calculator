@@ -742,7 +742,7 @@ function App() {
                     <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #4aedb5' }}>
                       <h4 style={{ color:'var(--green)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
 
-                      <PSlider label="Submittals / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={5000} step={50} color="var(--green)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
+                      <PSlider label="Submittals / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={1000} max={40000} step={100} color="var(--green)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
                       <PSlider label="Hours / Review (avg)" value={p.trunksubmittal.hoursPerReview} onChange={v=>updateRoiInput('trunksubmittal','hoursPerReview',v)} min={0.25} max={8} step={0.25} color="var(--green)"
                         tooltip={
                           <div>
