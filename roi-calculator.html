@@ -102,9 +102,9 @@ const formatNumber = (v) => new Intl.NumberFormat('en-US').format(Math.round(v||
 /* ─── Defaults ────────────────────────────────────────────── */
 const ROI_DEFAULTS = {
   global:         { valueCaptureRate: 0.10 },
-  trunktext:      { fieldUsersPerProject:7, searchesPerDay:2, currentSearchTime:20, trunkTextSearchTime:1, loadedLaborCost:100, workingDaysPerYear:250, riskAvoidanceEnabled:false, pctSearchesWithWrongInfo:0.04, pctPreventedByTrunkText:0.65, avgCostPerIncident:3500 },
-  trunksubmittal: { submittalsPerYear:2000, hoursPerReview:0.75, timeReductionPct:0.80, reviewerCost:50, reworkRate:0.04, pctReworkFromErrors:0.30, pctErrorsCaught:0.40 },
-  trunkreview:    { drawingSetsPerYear:24, hoursPerReview:8, timeReductionPct:0.75, reviewerCost:50, uncloudedChangesPerSet:8, pctCaughtByTrunkReview:0.85, pctChangesWithCostImpact:0.50, avgCostPerMissedChange:15000 }
+  trunktext:      { fieldUsersPerProject:7, searchesPerDay:2, currentSearchTime:20, trunkTextSearchTime:1, loadedLaborCost:80, workingDaysPerYear:250, riskAvoidanceEnabled:false, pctSearchesWithWrongInfo:0.04, pctPreventedByTrunkText:0.65, avgCostPerIncident:3500 },
+  trunksubmittal: { submittalsPerYear:2000, hoursPerReview:0.75, timeReductionPct:0.80, reviewerCost:100, reworkRate:0.04, pctReworkFromErrors:0.30, pctErrorsCaught:0.40 },
+  trunkreview:    { drawingSetsPerYear:24, hoursPerReview:8, timeReductionPct:0.75, reviewerCost:100, uncloudedChangesPerSet:8, pctCaughtByTrunkReview:0.85, pctChangesWithCostImpact:0.50, avgCostPerMissedChange:15000 }
 };
 
 /* ─── Deployment Config ───────────────────────────────────── */
