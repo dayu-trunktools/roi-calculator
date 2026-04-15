@@ -36,6 +36,8 @@
       --purple-muted: rgba(192,173,255,0.12);
       --red:          #ff7070;
       --red-muted:    rgba(255,112,112,0.12);
+      --orange:       #ff8c42;
+      --orange-muted: rgba(255,140,66,0.14);
       --yellow:       #fbbf24;
       --font-body:    'DM Sans', -apple-system, sans-serif;
       --font-mono:    'JetBrains Mono', monospace;
@@ -279,7 +281,7 @@ const generatePDF = (companyName, numProjects, avgProjectSizeM, roiCalc, roiInpu
   const co    = companyName || 'Your Portfolio';
   const activeProds  = Object.keys(enabledProducts).filter(k=>enabledProducts[k]);
   const prodLabels   = { trunktext:'TrunkText', trunksubmittal:'TrunkSubmittal', trunkreview:'TrunkReview' };
-  const prodColors   = { trunktext:[73,159,255], trunksubmittal:[46,196,140], trunkreview:[150,117,255] };
+  const prodColors   = { trunktext:[73,159,255], trunksubmittal:[255,140,66], trunkreview:[150,117,255] };
   const prodDesc     = {
     trunktext:      'AI document search — labor recovered from manual look-ups',
     trunksubmittal: 'Submittal review automation — labor savings + rework avoidance',
@@ -612,7 +614,7 @@ function App() {
             <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginRight:4 }}>Solutions:</span>
             {[
               { k:'trunktext',     label:'TrunkText',     color:'var(--blue)',   border:'rgba(109,179,255,0.35)', bg:'var(--blue-muted)' },
-              { k:'trunksubmittal',label:'TrunkSubmittal',color:'var(--green)',  border:'rgba(74,237,181,0.35)',  bg:'var(--green-muted)' },
+              { k:'trunksubmittal',label:'TrunkSubmittal',color:'var(--orange)', border:'rgba(255,140,66,0.35)',  bg:'var(--orange-muted)' },
               { k:'trunkreview',   label:'TrunkReview',   color:'var(--purple)', border:'rgba(192,173,255,0.35)', bg:'var(--purple-muted)' }
             ].map(prod => (
               <button key={prod.k} onClick={()=>toggleProduct(prod.k)}
@@ -739,26 +741,26 @@ function App() {
 
                   {/* ── TrunkSubmittal Card ── */}
                   {ep.trunksubmittal && (
-                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #4aedb5' }}>
-                      <h4 style={{ color:'var(--green)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #ff8c42' }}>
+                      <h4 style={{ color:'var(--orange)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
 
-                      <PSlider label="Submittals / Project / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={2000} step={50} color="var(--green)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
-                      <PSlider label="Hours / Review (avg)" value={p.trunksubmittal.hoursPerReview} onChange={v=>updateRoiInput('trunksubmittal','hoursPerReview',v)} min={0.25} max={8} step={0.25} color="var(--green)"
+                      <PSlider label="Submittals / Project / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={2000} step={50} color="var(--orange)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
+                      <PSlider label="Hours / Review (avg)" value={p.trunksubmittal.hoursPerReview} onChange={v=>updateRoiInput('trunksubmittal','hoursPerReview',v)} min={0.25} max={8} step={0.25} color="var(--orange)"
                         tooltip={
                           <div>
                             <div style={{ fontWeight:600, marginBottom:6, color:'var(--text-primary)', fontSize:11, textTransform:'uppercase', letterSpacing:'0.04em' }}>Where the time goes:</div>
                             {[['~5–10 min','Open submittal package, check cover sheet'],['~5–10 min','Cross-reference against spec requirements'],['~5–10 min','Review product data sheets & technical specs'],['~5–10 min','Verify compliance with contract drawings'],['~3–5 min','Check shop drawing dimensions & tolerances'],['~3–5 min','Review certifications & test reports'],['~3–5 min','Write review comments & note exceptions'],['~2–5 min','Log action & distribute']].map(([time,desc],i) => (
                               <div key={i} style={{ display:'flex', gap:8, padding:'3px 0', borderBottom:i<7?'1px solid var(--border-light)':'none' }}>
-                                <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--green)', fontWeight:600, flexShrink:0, minWidth:62 }}>{time}</span>
+                                <span style={{ fontFamily:'var(--font-mono)', fontSize:11, color:'var(--orange)', fontWeight:600, flexShrink:0, minWidth:62 }}>{time}</span>
                                 <span style={{ fontSize:11 }}>{desc}</span>
                               </div>
                             ))}
                             <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~30–60 min for a typical submittal review</div>
                           </div>
                         }/>
-                      <PSlider label="Time Reduction"     value={Math.round(p.trunksubmittal.timeReductionPct*100)} onChange={v=>updateRoiInput('trunksubmittal','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--green)" tooltip="How much of the review time TrunkSubmittal eliminates by auto-checking specs and flagging non-conformances. 80% means a 45-minute review now takes ~9 minutes. Conservative range is 60–85% depending on submittal complexity and team adoption."/>
-                      <PSlider label="Rework Rate"         value={+(p.trunksubmittal.reworkRate*100).toFixed(1)}    onChange={v=>updateRoiInput('trunksubmittal','reworkRate',v/100)}         min={1}  max={10} step={0.5} suffix="%" color="var(--green)" tooltip="Percentage of total project cost that goes to rework — doing work over because something was wrong. Industry average is 4–12% of project value. This is the starting point for the 2nd order calculation; not all rework comes from submittal errors (see % Rework from Errors in Advanced)."/>
-                      <PSlider label="Errors Caught"       value={Math.round(p.trunksubmittal.pctErrorsCaught*100)} onChange={v=>updateRoiInput('trunksubmittal','pctErrorsCaught',v/100)}    min={10} max={80} step={5} suffix="%" color="var(--green)" tooltip="Of the submittal errors that would otherwise slip through to construction and cause rework, what fraction does TrunkSubmittal catch at review time. This is intentionally conservative — not every flagged issue is a real error, and not every caught error would have caused rework."/>
+                      <PSlider label="Time Reduction"     value={Math.round(p.trunksubmittal.timeReductionPct*100)} onChange={v=>updateRoiInput('trunksubmittal','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--orange)" tooltip="How much of the review time TrunkSubmittal eliminates by auto-checking specs and flagging non-conformances. 80% means a 45-minute review now takes ~9 minutes. Conservative range is 60–85% depending on submittal complexity and team adoption."/>
+                      <PSlider label="Rework Rate"         value={+(p.trunksubmittal.reworkRate*100).toFixed(1)}    onChange={v=>updateRoiInput('trunksubmittal','reworkRate',v/100)}         min={1}  max={10} step={0.5} suffix="%" color="var(--orange)" tooltip="Percentage of total project cost that goes to rework — doing work over because something was wrong. Industry average is 4–12% of project value. This is the starting point for the 2nd order calculation; not all rework comes from submittal errors (see % Rework from Errors in Advanced)."/>
+                      <PSlider label="Errors Caught"       value={Math.round(p.trunksubmittal.pctErrorsCaught*100)} onChange={v=>updateRoiInput('trunksubmittal','pctErrorsCaught',v/100)}    min={10} max={80} step={5} suffix="%" color="var(--orange)" tooltip="Of the submittal errors that would otherwise slip through to construction and cause rework, what fraction does TrunkSubmittal catch at review time. This is intentionally conservative — not every flagged issue is a real error, and not every caught error would have caused rework."/>
 
                       <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunksubmittal:!prev.trunksubmittal}))}
                         style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
@@ -767,22 +769,22 @@ function App() {
                       </button>
                       {showAdvanced.trunksubmittal && (
                         <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
-                          <PSlider label="Reviewer Cost"       value={p.trunksubmittal.reviewerCost}           onChange={v=>updateRoiInput('trunksubmittal','reviewerCost',v)}           min={25} max={150} step={5}   prefix="$" suffix="/hr" color="var(--green)" tooltip="Fully loaded hourly cost of the person reviewing submittals — typically a PE, senior PM, or project engineer. Includes salary, benefits, and overhead. $50/hr is conservative; senior engineers in high-cost markets run $80–120/hr."/>
-                          <PSlider label="% Rework from Errors" value={Math.round(p.trunksubmittal.pctReworkFromErrors*100)} onChange={v=>updateRoiInput('trunksubmittal','pctReworkFromErrors',v/100)} min={10} max={80} step={5} suffix="%" color="var(--green)" tooltip="Of all project rework costs, what percentage is specifically attributable to submittal errors (wrong product approved, non-compliant material installed, etc.) vs. field execution errors or design changes. Industry range is 20–40%."/>
+                          <PSlider label="Reviewer Cost"       value={p.trunksubmittal.reviewerCost}           onChange={v=>updateRoiInput('trunksubmittal','reviewerCost',v)}           min={25} max={150} step={5}   prefix="$" suffix="/hr" color="var(--orange)" tooltip="Fully loaded hourly cost of the person reviewing submittals — typically a PE, senior PM, or project engineer. Includes salary, benefits, and overhead. $50/hr is conservative; senior engineers in high-cost markets run $80–120/hr."/>
+                          <PSlider label="% Rework from Errors" value={Math.round(p.trunksubmittal.pctReworkFromErrors*100)} onChange={v=>updateRoiInput('trunksubmittal','pctReworkFromErrors',v/100)} min={10} max={80} step={5} suffix="%" color="var(--orange)" tooltip="Of all project rework costs, what percentage is specifically attributable to submittal errors (wrong product approved, non-compliant material installed, etc.) vs. field execution errors or design changes. Industry range is 20–40%."/>
                         </div>
                       )}
 
-                      <div style={{ fontSize:10, fontWeight:700, color:'var(--green)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
-                      <CalcBreakdown color="var(--green)" steps={[
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--orange)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
+                      <CalcBreakdown color="var(--orange)" steps={[
                         { label:'Submittals / project / yr', value:p.trunksubmittal.submittalsPerYear.toLocaleString() },
                         { op:'×', label:'Hours / review',    value:p.trunksubmittal.hoursPerReview },
                         { op:'×', label:'Time reduction',    value:`${Math.round(p.trunksubmittal.timeReductionPct*100)}%` },
                         { op:'×', label:'Reviewer cost',     value:`$${p.trunksubmittal.reviewerCost}/hr` },
                       ]} total={{ label:`Per project · ${formatNumber(pp.tsHrsSaved)} hrs saved`, value:formatCurrency(pp.tsLabor) }}/>
                       {pp.tsLabor > 0 && (
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--green-muted)', border:'1px solid rgba(74,237,181,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--orange-muted)', border:'1px solid rgba(255,140,66,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
                           <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.tsLabor)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
-                          <span style={{ color:'var(--green)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.labor)}/yr</span>
+                          <span style={{ color:'var(--orange)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.labor)}/yr</span>
                         </div>
                       )}
                       {pp.tsLabor > 0 && (
@@ -792,16 +794,16 @@ function App() {
                       )}
 
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
-                      <CalcBreakdown color="var(--green)" steps={[
+                      <CalcBreakdown color="var(--orange)" steps={[
                         { label:'Avg project value',   value:formatCurrency(avgProjectSizeM*1e6) },
                         { op:'×', label:'Rework rate',          value:`${(p.trunksubmittal.reworkRate*100).toFixed(1)}%` },
                         { op:'×', label:'% from errors',        value:`${Math.round(p.trunksubmittal.pctReworkFromErrors*100)}%` },
                         { op:'×', label:'Errors caught',        value:`${Math.round(p.trunksubmittal.pctErrorsCaught*100)}%` },
                       ]} total={{ label:'Rework avoidance (per project)', value:formatCurrency(pp.tsRework) }}/>
                       {pp.tsRework > 0 && (
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 2px', padding:'5px 12px', background:'var(--green-muted)', border:'1px solid rgba(74,237,181,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 2px', padding:'5px 12px', background:'var(--orange-muted)', border:'1px solid rgba(255,140,66,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
                           <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.tsRework)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
-                          <span style={{ color:'var(--green)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.rework)}/yr</span>
+                          <span style={{ color:'var(--orange)', fontWeight:700 }}>= {formatCurrency(c.trunksubmittal.rework)}/yr</span>
                         </div>
                       )}
                     </div>
@@ -963,8 +965,8 @@ function App() {
                       </div>
                     )}
                     {ep.trunksubmittal && c.trunksubmittal.total > 0 && (
-                      <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--green-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(74,237,181,0.2)' }}>
-                        <span style={{ fontSize:11, fontWeight:600, color:'var(--green)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--orange-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(255,140,66,0.2)' }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:'var(--orange)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
                           TrunkSubmittal
                           <InfoTooltip text="Two components added together, then × # of projects. 1st order: submittals/year × hrs/review × time reduction % × reviewer cost (labor saved). 2nd order: avg project value × rework rate × % of rework from errors × % of errors caught by TrunkSubmittal (rework avoidance). Adjust rates in the left panel."/>
                         </span>
