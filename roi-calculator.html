@@ -812,7 +812,7 @@ function App() {
                     <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #c0adff' }}>
                       <h4 style={{ color:'var(--purple)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkReview</h4>
 
-                      <PSlider label="Drawing Sets / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)" tooltip="Number of bulletin or addendum drawing sets received per year on this project. Active commercial projects typically receive 12–36 bulletins annually, each requiring a full comparison against the master set. Each bulletin is a review cycle."/>
+                      <PSlider label="Drawing Sets / Project / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)" tooltip="Number of bulletin or addendum drawing sets received per year on this project. Active commercial projects typically receive 12–36 bulletins annually, each requiring a full comparison against the master set. Each bulletin is a review cycle."/>
                       <PSlider label="Hours / Review"            value={p.trunkreview.hoursPerReview}           onChange={v=>updateRoiInput('trunkreview','hoursPerReview',v)}           min={1}    max={20}    step={1}   color="var(--purple)"
                         tooltip={
                           <div>
@@ -845,7 +845,7 @@ function App() {
 
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--purple)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
                       <CalcBreakdown color="var(--purple)" steps={[
-                        { label:'Drawing sets / yr',  value:p.trunkreview.drawingSetsPerYear },
+                        { label:'Drawing sets / project / yr', value:p.trunkreview.drawingSetsPerYear },
                         { op:'×', label:'Hours / review',    value:p.trunkreview.hoursPerReview },
                         { op:'×', label:'Time reduction',    value:`${Math.round(p.trunkreview.timeReductionPct*100)}%` },
                         { op:'×', label:'Reviewer cost',     value:`$${p.trunkreview.reviewerCost}/hr` },
@@ -864,7 +864,7 @@ function App() {
 
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
                       <CalcBreakdown color="var(--purple)" steps={[
-                        { label:'Drawing sets / yr',      value:p.trunkreview.drawingSetsPerYear },
+                        { label:'Drawing sets / project / yr', value:p.trunkreview.drawingSetsPerYear },
                         { op:'×', label:'Changes / set',          value:p.trunkreview.uncloudedChangesPerSet },
                         { op:'×', label:'% caught',               value:`${Math.round(p.trunkreview.pctCaughtByTrunkReview*100)}%` },
                         { op:'×', label:'% with cost impact',     value:`${Math.round(p.trunkreview.pctChangesWithCostImpact*100)}%` },
