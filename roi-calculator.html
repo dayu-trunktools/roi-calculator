@@ -551,6 +551,14 @@ function App() {
 
   const state = useMemo(() => ({ companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs }), [companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs]);
 
+  // Auto-save: keep URL hash in sync so copying the address bar always captures current state
+  useEffect(() => {
+    try {
+      const payload = { co:state.companyName, n:state.numProjects, a:state.avgProjectSizeM, p:state.enabledProducts, ri:state.roiInputs };
+      history.replaceState(null, '', `#s=${btoa(JSON.stringify(payload))}`);
+    } catch {}
+  }, [state]);
+
   const handleShare = () => {
     const link = encodeState(state);
     navigator.clipboard.writeText(link).then(() => {
