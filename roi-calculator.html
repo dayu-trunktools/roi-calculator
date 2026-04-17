@@ -566,7 +566,7 @@ function App() {
   const ep = enabledProducts;
   const c  = roiCalc;
   const pp = c.pp;
-  const activeCount = [ep.trunktext, ep.trunksubmittal, ep.trunkreview].filter(Boolean).length;
+  const activeCount = [ep.trunktext, ep.trunksubmittal, ep.trunkreview, ep.trunkrfi].filter(Boolean).length;
 
   const state = useMemo(() => ({ companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs }), [companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs]);
 
@@ -655,7 +655,7 @@ function App() {
         </div>
 
         {/* ── Two-column: Calculator left, Results right ── */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 400px', gap:24, alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns:`1fr ${activeCount>=4?'340px':'400px'}`, gap:24, alignItems:'start' }}>
 
           {/* ══ LEFT: Inputs & Assumptions ══ */}
           <div>
@@ -674,11 +674,11 @@ function App() {
               </div>
             ) : (
               <div className="fade-in">
-                <div style={{ display:'grid', gridTemplateColumns:`repeat(${activeCount},1fr)`, gap:16, marginBottom:16 }}>
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${activeCount},1fr)`, gap:activeCount>=4?10:16, marginBottom:16 }}>
 
                   {/* ── TrunkText Card ── */}
                   {ep.trunktext && (
-                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #6db3ff' }}>
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:activeCount>=4?16:24, border:'1px solid var(--border)', borderLeft:'3px solid #6db3ff' }}>
                       <h4 style={{ color:'var(--blue)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkText</h4>
 
                       <PSlider label="Field Users / Project" value={p.trunktext.fieldUsersPerProject} onChange={v=>updateRoiInput('trunktext','fieldUsersPerProject',v)} min={1} max={300} step={1} color="var(--blue)" tooltip="Number of people per project who search for documents using Trunk Tools — typically field superintendents, project engineers, PMs, and foremen. More users = more searches = more time saved. This multiplies directly into the 1st order calculation."/>
@@ -769,7 +769,7 @@ function App() {
 
                   {/* ── TrunkSubmittal Card ── */}
                   {ep.trunksubmittal && (
-                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #ff8c42' }}>
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:activeCount>=4?16:24, border:'1px solid var(--border)', borderLeft:'3px solid #ff8c42' }}>
                       <h4 style={{ color:'var(--orange)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkSubmittal</h4>
 
                       <PSlider label="Submittals / Project / Year" value={p.trunksubmittal.submittalsPerYear} onChange={v=>updateRoiInput('trunksubmittal','submittalsPerYear',v)} min={50} max={2000} step={50} color="var(--orange)" tooltip="Total submittal packages reviewed per year on this project. Large commercial projects typically see 1,000–5,000 submittals. Each one requires cross-referencing specs, drawings, and product data sheets before approval. This is the volume multiplier for both 1st and 2nd order calculations."/>
@@ -839,7 +839,7 @@ function App() {
 
                   {/* ── TrunkReview Card ── */}
                   {ep.trunkreview && (
-                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #c0adff' }}>
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:activeCount>=4?16:24, border:'1px solid var(--border)', borderLeft:'3px solid #c0adff' }}>
                       <h4 style={{ color:'var(--purple)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkReview</h4>
 
                       <PSlider label="Drawing Sets / Project / Year"      value={p.trunkreview.drawingSetsPerYear}       onChange={v=>updateRoiInput('trunkreview','drawingSetsPerYear',v)}       min={1}    max={100}   step={1}   color="var(--purple)" tooltip="Number of bulletin or addendum drawing sets received per year on this project. Active commercial projects typically receive 12–36 bulletins annually, each requiring a full comparison against the master set. Each bulletin is a review cycle."/>
@@ -911,7 +911,7 @@ function App() {
 
                   {/* ── TrunkRFI Card ── */}
                   {ep.trunkrfi && (
-                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:24, border:'1px solid var(--border)', borderLeft:'3px solid #22d3ee' }}>
+                    <div style={{ background:'var(--bg-card)', borderRadius:'var(--radius-lg)', padding:activeCount>=4?16:24, border:'1px solid var(--border)', borderLeft:'3px solid #22d3ee' }}>
                       <h4 style={{ color:'var(--cyan)', fontWeight:700, fontSize:15, marginBottom:14, fontFamily:'var(--font-mono)' }}>TrunkRFI</h4>
 
                       <PSlider label="RFIs / Project / Year" value={p.trunkrfi.rfisPerYear} onChange={v=>updateRoiInput('trunkrfi','rfisPerYear',v)} min={10} max={1000} step={10} color="var(--cyan)" tooltip="Total RFI packages issued per year on this project. Large commercial projects typically generate 100–500 RFIs annually. Industry data shows ~30% of RFIs are unnecessary — questions already answerable from existing specs, drawings, or submittals. TrunkRFI intercepts these before they get filed."/>
