@@ -109,7 +109,7 @@ const ROI_DEFAULTS = {
   trunktext:      { fieldUsersPerProject:7, searchesPerDay:2, currentSearchTime:20, trunkTextSearchTime:1, loadedLaborCost:80, workingDaysPerYear:250, riskAvoidanceEnabled:false, pctSearchesWithWrongInfo:0.04, pctPreventedByTrunkText:0.65, avgCostPerIncident:3500 },
   trunksubmittal: { submittalsPerYear:2000, hoursPerReview:0.75, timeReductionPct:0.80, reviewerCost:100, reworkRate:0.04, pctReworkFromErrors:0.30, pctErrorsCaught:0.40 },
   trunkreview:    { drawingSetsPerYear:24, hoursPerReview:8, timeReductionPct:0.75, reviewerCost:100, uncloudedChangesPerSet:8, pctCaughtByTrunkReview:0.85, pctChangesWithCostImpact:0.50, avgCostPerMissedChange:15000 },
-  trunkrfi:       { rfisPerYear:200, hoursPerRFI:1.5, timeReductionPct:0.70, pmCost:100, pctUnnecessaryCaught:0.25, avgCostPerUnnecessaryRFI:2000 }
+  trunkrfi:       { rfisPerYear:200, hoursPerRFI:1, timeReductionPct:0.80, pmCost:100, pctUnnecessary:0.05 }
 };
 
 /* ─── Deployment Config ───────────────────────────────────── */
@@ -380,7 +380,7 @@ const generatePDF = (companyName, numProjects, avgProjectSizeM, roiCalc, roiInpu
     let det = `${Math.round(r.hours).toLocaleString()} hrs recovered`;
     if (prod==='trunksubmittal'&&r.rework)      det += `   ·   Rework avoided: ${formatCurrency(r.rework)}`;
     if (prod==='trunkreview'&&r.changes)        det += `   ·   Missed changes caught: ${formatCurrency(r.changes)}`;
-    if (prod==='trunkrfi'&&r.unnecessary)       det += `   ·   Unnecessary RFIs avoided: ${formatCurrency(r.unnecessary)}`;
+    if (prod==='trunkrfi')                       det += `   ·   ${formatNumber(p.trunkrfi?.rfisPerYear*(p.trunkrfi?.pctUnnecessary||0))} unnecessary RFIs/yr eliminated`;
     txt(det,mx,y+23); y += 30;
   });
   y += 4;
@@ -390,7 +390,7 @@ const generatePDF = (companyName, numProjects, avgProjectSizeM, roiCalc, roiInpu
   ln(mx,y,W-mx,y,[198,208,228],0.4); y += 9;
   sf(10.5,'bold',[12,18,44]); txt('Value Components',mx,y); y += 9;
   const first  = (roiCalc.trunktext?.retrieval||0)+(roiCalc.trunksubmittal?.labor||0)+(roiCalc.trunkreview?.labor||0)+(roiCalc.trunkrfi?.labor||0);
-  const second = (roiCalc.trunktext?.riskAvoidance||0)+(roiCalc.trunksubmittal?.rework||0)+(roiCalc.trunkreview?.changes||0)+(roiCalc.trunkrfi?.unnecessary||0);
+  const second = (roiCalc.trunktext?.riskAvoidance||0)+(roiCalc.trunksubmittal?.rework||0)+(roiCalc.trunkreview?.changes||0);
   const tHours = activeProds.reduce((s,k)=>s+(roiCalc[k]?.hours||0),0);
 
   // Table header row
@@ -460,9 +460,8 @@ const generatePDF = (companyName, numProjects, avgProjectSizeM, roiCalc, roiInpu
   if (enabledProducts.trunkrfi) {
     aRows.push(['TrunkRFI','RFIs / year',p.trunkrfi.rfisPerYear.toString()]);
     aRows.push(['TrunkRFI','Hours / RFI',p.trunkrfi.hoursPerRFI.toString()]);
-    aRows.push(['TrunkRFI','Time reduction',`${Math.round(p.trunkrfi.timeReductionPct*100)}%`]);
-    aRows.push(['TrunkRFI','% Unnecessary caught',`${Math.round(p.trunkrfi.pctUnnecessaryCaught*100)}%`]);
-    aRows.push(['TrunkRFI','Avg cost / unnecessary RFI',`$${p.trunkrfi.avgCostPerUnnecessaryRFI.toLocaleString()}`]);
+    aRows.push(['TrunkRFI','Time reduction (necessary RFIs)',`${Math.round(p.trunkrfi.timeReductionPct*100)}%`]);
+    aRows.push(['TrunkRFI','% of RFIs unnecessary',`${Math.round(p.trunkrfi.pctUnnecessary*100)}%`]);
   }
 
   fr(mx,y-3,cw,10,[18,24,50]);
@@ -540,11 +539,11 @@ function App() {
     const trChangesPP    = ep.trunkreview ? p.trunkreview.drawingSetsPerYear * p.trunkreview.uncloudedChangesPerSet * p.trunkreview.pctCaughtByTrunkReview * p.trunkreview.pctChangesWithCostImpact * p.trunkreview.avgCostPerMissedChange : 0;
     const trTotalPP      = trLaborPP + trChangesPP;
 
-    // TrunkRFI
-    const rfHrsSavedPP   = ep.trunkrfi ? p.trunkrfi.rfisPerYear * p.trunkrfi.hoursPerRFI * p.trunkrfi.timeReductionPct : 0;
+    // TrunkRFI — necessary RFIs: timeReductionPct saved; unnecessary RFIs: 100% saved (eliminated)
+    const rfHrsSavedPP   = ep.trunkrfi ? p.trunkrfi.rfisPerYear * p.trunkrfi.hoursPerRFI *
+      ((1 - p.trunkrfi.pctUnnecessary) * p.trunkrfi.timeReductionPct + p.trunkrfi.pctUnnecessary) : 0;
     const rfLaborPP      = ep.trunkrfi ? rfHrsSavedPP * p.trunkrfi.pmCost : 0;
-    const rfUnnecPP      = ep.trunkrfi ? p.trunkrfi.rfisPerYear * p.trunkrfi.pctUnnecessaryCaught * p.trunkrfi.avgCostPerUnnecessaryRFI : 0;
-    const rfTotalPP      = rfLaborPP + rfUnnecPP;
+    const rfTotalPP      = rfLaborPP;
 
     const valuePerProject = ttTotalPP + tsTotalPP + trTotalPP + rfTotalPP;
     const n = Math.max(numProjects, 0);
@@ -553,8 +552,8 @@ function App() {
       trunktext:     { retrieval:ttRetrievalPP*n, riskAvoidance:ttRiskPP*n, total:ttTotalPP*n, hours:(ep.trunktext?ttSearches*ttTimeSaved:0)*n, labor:ttRetrievalPP*n },
       trunksubmittal:{ labor:tsLaborPP*n, rework:tsReworkPP*n, total:tsTotalPP*n, hours:tsHrsSavedPP*n },
       trunkreview:   { labor:trLaborPP*n, changes:trChangesPP*n, total:trTotalPP*n, hours:trHrsSavedPP*n },
-      trunkrfi:      { labor:rfLaborPP*n, unnecessary:rfUnnecPP*n, total:rfTotalPP*n, hours:rfHrsSavedPP*n },
-      pp: { ttRetrieval:ttRetrievalPP, ttRisk:ttRiskPP, tsLabor:tsLaborPP, tsRework:tsReworkPP, trLabor:trLaborPP, trChanges:trChangesPP, rfLabor:rfLaborPP, rfUnnec:rfUnnecPP, ttSearches, ttTimeSaved, tsHrsSaved:tsHrsSavedPP, trHrsSaved:trHrsSavedPP, rfHrsSaved:rfHrsSavedPP },
+      trunkrfi:      { labor:rfLaborPP*n, total:rfTotalPP*n, hours:rfHrsSavedPP*n },
+      pp: { ttRetrieval:ttRetrievalPP, ttRisk:ttRiskPP, tsLabor:tsLaborPP, tsRework:tsReworkPP, trLabor:trLaborPP, trChanges:trChangesPP, rfLabor:rfLaborPP, ttSearches, ttTimeSaved, tsHrsSaved:tsHrsSavedPP, trHrsSaved:trHrsSavedPP, rfHrsSaved:rfHrsSavedPP },
       valuePerProject,
       totalAnnual:   valuePerProject * n,
       monthlyCost:   (valuePerProject * n) / 12,
@@ -928,8 +927,8 @@ function App() {
                             <div style={{ marginTop:6, fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>Total: ~45–80 min per RFI. TrunkRFI handles the search and drafting steps autonomously.</div>
                           </div>
                         }/>
-                      <PSlider label="Time Reduction" value={Math.round(p.trunkrfi.timeReductionPct*100)} onChange={v=>updateRoiInput('trunkrfi','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--cyan)" tooltip="How much of the per-RFI processing time TrunkRFI eliminates. The AI autonomously searches the full project corpus, checks for duplicates, and drafts a complete RFI when one is truly needed — cutting out most of the research and writing time. 70% means a 90-minute process becomes ~27 minutes."/>
-                      <PSlider label="% Unnecessary RFIs Caught" value={Math.round(p.trunkrfi.pctUnnecessaryCaught*100)} onChange={v=>updateRoiInput('trunkrfi','pctUnnecessaryCaught',v/100)} min={5} max={60} step={5} suffix="%" color="var(--cyan)" tooltip="Of all RFIs filed, the percentage TrunkRFI identifies as unnecessary — questions already answered in the existing contract documents, drawings, specs, submittals, or prior RFIs. Trunk Tools' analysis of 10,000+ RFIs found ~30% were addressable from existing documentation. A 25% default is conservative. Unnecessary RFIs aren't just wasted PM time — each one triggers engineer review time, response delays averaging 5 business days, and downstream field standby costs."/>
+                      <PSlider label="Time Reduction" value={Math.round(p.trunkrfi.timeReductionPct*100)} onChange={v=>updateRoiInput('trunkrfi','timeReductionPct',v/100)} min={10} max={95} step={5} suffix="%" color="var(--cyan)" tooltip="How much of the per-RFI processing time TrunkRFI eliminates for necessary RFIs. The AI autonomously searches the full project corpus and drafts a complete, well-referenced RFI — cutting out the manual research and writing time. 80% means a 60-minute process becomes ~12 minutes."/>
+                      <PSlider label="% of RFIs Unnecessary" value={Math.round(p.trunkrfi.pctUnnecessary*100)} onChange={v=>updateRoiInput('trunkrfi','pctUnnecessary',v/100)} min={1} max={50} step={1} suffix="%" color="var(--cyan)" tooltip="The percentage of all RFIs that are unnecessary — questions already answered in the existing contract documents, drawings, specs, submittals, or prior RFIs. TrunkRFI catches 100% of these before they get filed, saving the full hour of processing time per eliminated RFI. Trunk Tools' analysis of 10,000+ RFIs found ~30% were addressable from existing documentation. 5% is a conservative starting point."/>
 
                       <button type="button" onClick={()=>setShowAdvanced(prev=>({...prev,trunkrfi:!prev.trunkrfi}))}
                         style={{ display:'flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer', padding:'8px 0', fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', width:'100%' }}>
@@ -938,17 +937,19 @@ function App() {
                       </button>
                       {showAdvanced.trunkrfi && (
                         <div style={{ paddingTop:4, borderTop:'1px solid var(--border-light)' }}>
-                          <PSlider label="PM / Engineer Cost" value={p.trunkrfi.pmCost} onChange={v=>updateRoiInput('trunkrfi','pmCost',v)} min={25} max={200} step={5} prefix="$" suffix="/hr" color="var(--cyan)" tooltip="Fully loaded hourly cost of the PM, superintendent, or project engineer managing RFIs. Includes salary, benefits, and overhead. This multiplies against the hours saved per RFI from TrunkRFI's autonomous research and drafting."/>
-                          <PSlider label="Avg Cost / Unnecessary RFI" value={p.trunkrfi.avgCostPerUnnecessaryRFI} onChange={v=>updateRoiInput('trunkrfi','avgCostPerUnnecessaryRFI',v)} min={500} max={10000} step={500} prefix="$" color="var(--cyan)" tooltip="Total cost when an unnecessary RFI gets filed anyway: engineer review time ($150–300), GC admin time to route and track, 5-day average response wait, and any field standby costs while crews wait for clarification. Range is $500 (minor clarification) to $10K+ (RFIs that hold up critical path work). $2,000 is a conservative midpoint."/>
+                          <PSlider label="PM / Engineer Cost" value={p.trunkrfi.pmCost} onChange={v=>updateRoiInput('trunkrfi','pmCost',v)} min={25} max={200} step={5} prefix="$" suffix="/hr" color="var(--cyan)" tooltip="Fully loaded hourly cost of the PM, superintendent, or project engineer managing RFIs. Includes salary, benefits, and overhead. This multiplies against all hours saved — both from faster necessary RFI processing and from eliminating unnecessary ones."/>
                         </div>
                       )}
 
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--cyan)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:14, marginBottom:4 }}>1st Order — Attributable to Labor</div>
                       <CalcBreakdown color="var(--cyan)" steps={[
-                        { label:'RFIs / project / yr',  value:p.trunkrfi.rfisPerYear.toLocaleString() },
-                        { op:'×', label:'Hours / RFI',  value:p.trunkrfi.hoursPerRFI },
-                        { op:'×', label:'Time reduction', value:`${Math.round(p.trunkrfi.timeReductionPct*100)}%` },
-                        { op:'×', label:'PM cost',       value:`$${p.trunkrfi.pmCost}/hr` },
+                        { label:`Necessary RFIs (${100-Math.round(p.trunkrfi.pctUnnecessary*100)}%)`, value:formatNumber(p.trunkrfi.rfisPerYear*(1-p.trunkrfi.pctUnnecessary)) },
+                        { op:'×', label:'Hours / RFI',     value:p.trunkrfi.hoursPerRFI },
+                        { op:'×', label:'Time reduction',  value:`${Math.round(p.trunkrfi.timeReductionPct*100)}%` },
+                        { op:'×', label:'PM cost',         value:`$${p.trunkrfi.pmCost}/hr`, divider:true },
+                        { label:`Unnecessary RFIs (${Math.round(p.trunkrfi.pctUnnecessary*100)}%) — eliminated`, value:formatNumber(p.trunkrfi.rfisPerYear*p.trunkrfi.pctUnnecessary) },
+                        { op:'×', label:'Hours / RFI (100% saved)', value:p.trunkrfi.hoursPerRFI },
+                        { op:'×', label:'PM cost',         value:`$${p.trunkrfi.pmCost}/hr` },
                       ]} total={{ label:`Per project · ${formatNumber(pp.rfHrsSaved)} hrs saved`, value:formatCurrency(pp.rfLabor) }}/>
                       {pp.rfLabor > 0 && (
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 6px', padding:'5px 12px', background:'var(--cyan-muted)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
@@ -961,19 +962,6 @@ function App() {
                           Hours recovered from RFI research and drafting free PMs and engineers to focus on field coordination, subcontractor management, and proactive issue resolution.
                         </div>
                       )}
-
-                      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginTop:12, marginBottom:4 }}>2nd Order — Cost Avoidance</div>
-                      <CalcBreakdown color="var(--cyan)" steps={[
-                        { label:'RFIs / project / yr',       value:p.trunkrfi.rfisPerYear.toLocaleString() },
-                        { op:'×', label:'% unnecessary caught', value:`${Math.round(p.trunkrfi.pctUnnecessaryCaught*100)}%` },
-                        { op:'×', label:'Avg cost / unnecessary RFI', value:formatCurrency(p.trunkrfi.avgCostPerUnnecessaryRFI) },
-                      ]} total={{ label:'Unnecessary RFI avoidance (per project)', value:formatCurrency(pp.rfUnnec) }}/>
-                      {pp.rfUnnec > 0 && (
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', margin:'4px 0 2px', padding:'5px 12px', background:'var(--cyan-muted)', border:'1px solid rgba(34,211,238,0.2)', borderRadius:'var(--radius-sm)', fontSize:11, fontFamily:'var(--font-mono)' }}>
-                          <span style={{ color:'var(--text-muted)' }}>{formatCurrency(pp.rfUnnec)}/project × {numProjects} project{numProjects!==1?'s':''}</span>
-                          <span style={{ color:'var(--cyan)', fontWeight:700 }}>= {formatCurrency(c.trunkrfi.unnecessary)}/yr</span>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -981,7 +969,7 @@ function App() {
                 {/* Methodology note */}
                 <div style={{ padding:'12px 18px', background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border-light)', fontSize:11, color:'var(--text-muted)', lineHeight:1.7 }}>
                   <span style={{ fontWeight:600, color:'var(--text-secondary)' }}>Methodology — </span>
-                  First-order value: labor hours recovered from automation × fully loaded hourly cost. Second-order value: rework avoidance (TrunkSubmittal), missed drawing change detection (TrunkReview), and unnecessary RFI cost avoidance (TrunkRFI). All assumptions are configurable above. Results represent potential value; actual outcomes depend on deployment scope and team adoption.
+                  First-order value: labor hours recovered from automation × fully loaded hourly cost. Second-order value: rework avoidance (TrunkSubmittal) and missed drawing change detection (TrunkReview). TrunkRFI value is entirely first-order: time saved on necessary RFIs (via AI-assisted research and drafting) plus full elimination of unnecessary RFIs. All assumptions are configurable above. Results represent potential value; actual outcomes depend on deployment scope and team adoption.
                 </div>
               </div>
             )}
@@ -1011,7 +999,7 @@ function App() {
 
                   {(() => {
                     const first  = (c.trunktext?.retrieval||0) + (c.trunksubmittal?.labor||0) + (c.trunkreview?.labor||0) + (c.trunkrfi?.labor||0);
-                    const second = (c.trunktext?.riskAvoidance||0) + (c.trunksubmittal?.rework||0) + (c.trunkreview?.changes||0) + (c.trunkrfi?.unnecessary||0);
+                    const second = (c.trunktext?.riskAvoidance||0) + (c.trunksubmittal?.rework||0) + (c.trunkreview?.changes||0);
                     return (
                       <>
                         {first > 0 && (
@@ -1082,7 +1070,7 @@ function App() {
                       <div style={{ display:'flex', justifyContent:'space-between', padding:'5px 10px', background:'var(--cyan-muted)', borderRadius:'var(--radius-sm)', border:'1px solid rgba(34,211,238,0.2)' }}>
                         <span style={{ fontSize:11, fontWeight:600, color:'var(--cyan)', fontFamily:'var(--font-mono)', display:'flex', alignItems:'center' }}>
                           TrunkRFI
-                          <InfoTooltip text="Two components added together, then × # of projects. 1st order: RFIs/year × hrs/RFI × time reduction % × PM cost (labor saved from AI-assisted research and drafting). 2nd order: RFIs/year × % unnecessary caught × avg cost per unnecessary RFI (delay and admin cost avoided by eliminating questions already answerable from existing docs). Trunk Tools data: ~30% of RFIs are unnecessary."/>
+                          <InfoTooltip text="Labor savings from two sources, then × # of projects. Necessary RFIs: rfisPerYear × (1 − % unnecessary) × hrs/RFI × time reduction % × PM cost. Unnecessary RFIs (already answerable from docs): rfisPerYear × % unnecessary × hrs/RFI × 100% × PM cost — these are fully eliminated so the full hour is saved. Both feed into 1st Order labor."/>
                         </span>
                         <span style={{ fontSize:11, fontFamily:'var(--font-mono)', color:'var(--text-primary)', fontWeight:600 }}>{formatCurrency(c.trunkrfi.total)}<span style={{ color:'var(--text-muted)', fontWeight:400 }}>/yr</span></span>
                       </div>
