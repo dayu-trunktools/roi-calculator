@@ -511,7 +511,7 @@ function App() {
   const [showAdvanced,    setShowAdvanced]     = useState({ trunktext:false, trunksubmittal:false, trunkreview:false, trunkrfi:false });
   const [copied,          setCopied]           = useState(false);
   const [caseId,          setCaseId]           = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?m[1]:null; });
-  const [caseLoading,     setCaseLoading]      = useState(() => window.location.hash.startsWith('#case='));
+  const [caseLoading,     setCaseLoading]      = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?!sessionStorage.getItem(`roi_case_${m[1]}`):false; });
   const [caseSaving,      setCaseSaving]       = useState(false);
   const saveTimerRef = useRef(null);
 
@@ -585,26 +585,31 @@ function App() {
     } catch {}
   }, [state]);
 
-  // Case: load state from JSONBin on mount
+  // Case: load state from JSONBin on mount (cache-first for instant load)
   useEffect(() => {
     const m = window.location.hash.match(/#case=([^&\s]+)/);
     if (!m) return;
-    fetch(`${JBIN_API}/${m[1]}/latest`, { headers:{'X-Master-Key':JBIN_KEY} })
+    const id = m[1];
+    const applyRec = (rec) => {
+      if (rec.companyName     !== undefined) setCompanyName(rec.companyName);
+      if (rec.numProjects     !== undefined) setNumProjects(rec.numProjects);
+      if (rec.avgProjectSizeM !== undefined) setAvgProjectSizeM(rec.avgProjectSizeM);
+      if (rec.enabledProducts)               setEnabledProducts(ep=>({...ep,...rec.enabledProducts}));
+      if (rec.roiInputs)                     setRoiInputs({
+        global:        {...ROI_DEFAULTS.global,        ...(rec.roiInputs.global||{})},
+        trunktext:     {...ROI_DEFAULTS.trunktext,     ...(rec.roiInputs.trunktext||{})},
+        trunksubmittal:{...ROI_DEFAULTS.trunksubmittal,...(rec.roiInputs.trunksubmittal||{})},
+        trunkreview:   {...ROI_DEFAULTS.trunkreview,   ...(rec.roiInputs.trunkreview||{})},
+        trunkrfi:      {...ROI_DEFAULTS.trunkrfi,      ...(rec.roiInputs.trunkrfi||{})}
+      });
+    };
+    // Populate from cache instantly if available (no overlay)
+    const cached = sessionStorage.getItem(`roi_case_${id}`);
+    if (cached) { try { applyRec(JSON.parse(cached)); setCaseLoading(false); } catch {} }
+    // Always fetch from JSONBin to get latest (syncs changes from other devices)
+    fetch(`${JBIN_API}/${id}/latest`, { headers:{'X-Master-Key':JBIN_KEY} })
       .then(r=>r.json())
-      .then(d => {
-        const rec = d.record;
-        if (rec.companyName     !== undefined) setCompanyName(rec.companyName);
-        if (rec.numProjects     !== undefined) setNumProjects(rec.numProjects);
-        if (rec.avgProjectSizeM !== undefined) setAvgProjectSizeM(rec.avgProjectSizeM);
-        if (rec.enabledProducts)               setEnabledProducts(ep=>({...ep,...rec.enabledProducts}));
-        if (rec.roiInputs)                     setRoiInputs({
-          global:        {...ROI_DEFAULTS.global,        ...(rec.roiInputs.global||{})},
-          trunktext:     {...ROI_DEFAULTS.trunktext,     ...(rec.roiInputs.trunktext||{})},
-          trunksubmittal:{...ROI_DEFAULTS.trunksubmittal,...(rec.roiInputs.trunksubmittal||{})},
-          trunkreview:   {...ROI_DEFAULTS.trunkreview,   ...(rec.roiInputs.trunkreview||{})},
-          trunkrfi:      {...ROI_DEFAULTS.trunkrfi,      ...(rec.roiInputs.trunkrfi||{})}
-        });
-      })
+      .then(d => { applyRec(d.record); sessionStorage.setItem(`roi_case_${id}`, JSON.stringify(d.record)); })
       .catch(e=>console.error('Failed to load ROI case:',e))
       .finally(()=>setCaseLoading(false));
   }, []);
@@ -619,7 +624,8 @@ function App() {
         method:'PUT',
         headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
         body: JSON.stringify(state)
-      }).finally(()=>setCaseSaving(false));
+      }).then(()=>sessionStorage.setItem(`roi_case_${caseId}`, JSON.stringify(state)))
+        .finally(()=>setCaseSaving(false));
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [state, caseId, caseLoading]);
@@ -636,6 +642,7 @@ function App() {
       const id = data.metadata.id;
       setCaseId(id);
       history.replaceState(null, '', `#case=${id}`);
+      sessionStorage.setItem(`roi_case_${id}`, JSON.stringify(state));
     } catch(e) { console.error('Failed to create ROI case:',e); }
     setCaseLoading(false);
   };
@@ -699,7 +706,7 @@ function App() {
             <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', padding:'7px 14px' }}>
               <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:caseSaving?'var(--yellow)':'#4aedb5', boxShadow:caseSaving?'none':'0 0 6px rgba(74,237,181,0.6)', transition:'all 0.4s' }}/>
               <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{companyName||'ROI Case'}</div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{companyName?`${companyName} ROI Case`:'ROI Case'}</div>
                 <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{caseSaving?'Saving…':'Live · auto-saves for all viewers'}</div>
               </div>
               <button onClick={handleCopyLink}
