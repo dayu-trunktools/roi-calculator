@@ -668,15 +668,6 @@ function App() {
   return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column' }}>
 
-      {/* ── Case loading overlay ── */}
-      {caseLoading && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(9,12,22,0.88)', zIndex:99999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
-          <div style={{ width:38, height:38, border:'3px solid var(--border)', borderTopColor:'var(--cyan)', borderRadius:'50%', animation:'spin 0.75s linear infinite' }}/>
-          <div style={{ color:'var(--text-primary)', fontSize:15, fontWeight:600 }}>Loading ROI case…</div>
-          <div style={{ color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)' }}>Fetching saved data from the cloud</div>
-        </div>
-      )}
-
       {/* ── Header ── */}
       <header style={{ background:'var(--bg-surface)', borderBottom:'1px solid var(--border)', padding:'0 40px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -704,10 +695,10 @@ function App() {
             </>
           ) : (
             <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', padding:'7px 14px' }}>
-              <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:caseSaving?'var(--yellow)':'#4aedb5', boxShadow:caseSaving?'none':'0 0 6px rgba(74,237,181,0.6)', transition:'all 0.4s' }}/>
+              <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:caseLoading?'var(--cyan)':caseSaving?'var(--yellow)':'#4aedb5', boxShadow:caseLoading?'none':caseSaving?'none':'0 0 6px rgba(74,237,181,0.6)', animation:caseLoading?'spin 1.2s linear infinite':'none', transition:'all 0.4s' }}/>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{companyName?`${companyName} ROI Case`:'ROI Case'}</div>
-                <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{caseSaving?'Saving…':'Live · auto-saves for all viewers'}</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{caseLoading?'Loading model…':caseSaving?'Saving…':'Live · auto-saves for all viewers'}</div>
               </div>
               <button onClick={handleCopyLink}
                 style={{ padding:'6px 12px', borderRadius:'var(--radius-md)', border:`1px solid ${copied?'rgba(74,237,181,0.4)':'var(--border)'}`, background:copied?'var(--green-muted)':'var(--bg-card)', color:copied?'#4aedb5':'var(--text-secondary)', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:5, transition:'all var(--transition)' }}>
