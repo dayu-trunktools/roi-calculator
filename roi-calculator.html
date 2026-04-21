@@ -511,7 +511,7 @@ function App() {
   const [showAdvanced,    setShowAdvanced]     = useState({ trunktext:false, trunksubmittal:false, trunkreview:false, trunkrfi:false });
   const [copied,          setCopied]           = useState(false);
   const [caseId,          setCaseId]           = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?m[1]:null; });
-  const [caseLoading,     setCaseLoading]      = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?!sessionStorage.getItem(`roi_case_${m[1]}`):false; });
+  const [caseLoading,     setCaseLoading]      = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?!localStorage.getItem(`roi_case_${m[1]}`):false; });
   const [caseSaving,      setCaseSaving]       = useState(false);
   const saveTimerRef = useRef(null);
 
@@ -604,12 +604,12 @@ function App() {
       });
     };
     // Populate from cache instantly if available (no overlay)
-    const cached = sessionStorage.getItem(`roi_case_${id}`);
+    const cached = localStorage.getItem(`roi_case_${id}`);
     if (cached) { try { applyRec(JSON.parse(cached)); setCaseLoading(false); } catch {} }
     // Always fetch from JSONBin to get latest (syncs changes from other devices)
     fetch(`${JBIN_API}/${id}/latest`, { headers:{'X-Master-Key':JBIN_KEY} })
       .then(r=>r.json())
-      .then(d => { applyRec(d.record); sessionStorage.setItem(`roi_case_${id}`, JSON.stringify(d.record)); })
+      .then(d => { applyRec(d.record); localStorage.setItem(`roi_case_${id}`, JSON.stringify(d.record)); })
       .catch(e=>console.error('Failed to load ROI case:',e))
       .finally(()=>setCaseLoading(false));
   }, []);
@@ -624,7 +624,7 @@ function App() {
         method:'PUT',
         headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
         body: JSON.stringify(state)
-      }).then(()=>sessionStorage.setItem(`roi_case_${caseId}`, JSON.stringify(state)))
+      }).then(()=>localStorage.setItem(`roi_case_${caseId}`, JSON.stringify(state)))
         .finally(()=>setCaseSaving(false));
     }, 2000);
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
@@ -642,7 +642,7 @@ function App() {
       const id = data.metadata.id;
       setCaseId(id);
       history.replaceState(null, '', `#case=${id}`);
-      sessionStorage.setItem(`roi_case_${id}`, JSON.stringify(state));
+      localStorage.setItem(`roi_case_${id}`, JSON.stringify(state));
     } catch(e) { console.error('Failed to create ROI case:',e); }
     setCaseLoading(false);
   };
