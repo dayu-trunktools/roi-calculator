@@ -84,6 +84,7 @@
     input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.15); }
     input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px; cursor: pointer; }
     @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
     @keyframes pulseGlow { 0%,100% { box-shadow:0 0 12px var(--accent-glow); } 50% { box-shadow:0 0 24px var(--accent-glow); } }
     .fade-in { animation: fadeIn 350ms ease both; }
   </style>
@@ -116,7 +117,9 @@ const ROI_DEFAULTS = {
 // Set DEPLOY_URL to your hosted URL so Share links work for anyone worldwide.
 // Example: 'https://yourname.github.io/roi-calc/roi-calculator.html'
 // Leave blank when serving from a real web server (uses window.location automatically).
-const DEPLOY_URL = 'https://dayu-trunktools.github.io/roi-calculator/roi-calculator.html';
+const DEPLOY_URL  = 'https://dayu-trunktools.github.io/roi-calculator/roi-calculator.html';
+const JBIN_KEY    = '$2a$10$E8IGGmDkX03Owl7F5Cgs1ucHMxzJ3gHDJuuEzoPHndmx3eoupmPBG';
+const JBIN_API    = 'https://api.jsonbin.io/v3/b';
 
 /* ─── URL encode / decode ─────────────────────────────────── */
 const encodeState = (s) => {
@@ -507,6 +510,10 @@ function App() {
   const [roiInputs,       setRoiInputs]       = useState(init.roiInputs);
   const [showAdvanced,    setShowAdvanced]     = useState({ trunktext:false, trunksubmittal:false, trunkreview:false, trunkrfi:false });
   const [copied,          setCopied]           = useState(false);
+  const [caseId,          setCaseId]           = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?m[1]:null; });
+  const [caseLoading,     setCaseLoading]      = useState(() => window.location.hash.startsWith('#case='));
+  const [caseSaving,      setCaseSaving]       = useState(false);
+  const saveTimerRef = useRef(null);
 
   const updateRoiInput = (cat, field, val) =>
     setRoiInputs(prev => ({ ...prev, [cat]:{ ...prev[cat], [field]:parseFloat(val)||0 } }));
@@ -569,13 +576,75 @@ function App() {
 
   const state = useMemo(() => ({ companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs }), [companyName, numProjects, avgProjectSizeM, enabledProducts, roiInputs]);
 
-  // Auto-save: keep URL hash in sync so copying the address bar always captures current state
+  // Auto-save: keep URL hash in sync (skipped in case mode — URL stays as #case=<id>)
   useEffect(() => {
+    if (window.location.hash.startsWith('#case=')) return;
     try {
       const payload = { co:state.companyName, n:state.numProjects, a:state.avgProjectSizeM, p:state.enabledProducts, ri:state.roiInputs };
       history.replaceState(null, '', `#s=${btoa(JSON.stringify(payload))}`);
     } catch {}
   }, [state]);
+
+  // Case: load state from JSONBin on mount
+  useEffect(() => {
+    const m = window.location.hash.match(/#case=([^&\s]+)/);
+    if (!m) return;
+    fetch(`${JBIN_API}/${m[1]}/latest`, { headers:{'X-Master-Key':JBIN_KEY} })
+      .then(r=>r.json())
+      .then(d => {
+        const rec = d.record;
+        if (rec.companyName     !== undefined) setCompanyName(rec.companyName);
+        if (rec.numProjects     !== undefined) setNumProjects(rec.numProjects);
+        if (rec.avgProjectSizeM !== undefined) setAvgProjectSizeM(rec.avgProjectSizeM);
+        if (rec.enabledProducts)               setEnabledProducts(ep=>({...ep,...rec.enabledProducts}));
+        if (rec.roiInputs)                     setRoiInputs({
+          global:        {...ROI_DEFAULTS.global,        ...(rec.roiInputs.global||{})},
+          trunktext:     {...ROI_DEFAULTS.trunktext,     ...(rec.roiInputs.trunktext||{})},
+          trunksubmittal:{...ROI_DEFAULTS.trunksubmittal,...(rec.roiInputs.trunksubmittal||{})},
+          trunkreview:   {...ROI_DEFAULTS.trunkreview,   ...(rec.roiInputs.trunkreview||{})},
+          trunkrfi:      {...ROI_DEFAULTS.trunkrfi,      ...(rec.roiInputs.trunkrfi||{})}
+        });
+      })
+      .catch(e=>console.error('Failed to load ROI case:',e))
+      .finally(()=>setCaseLoading(false));
+  }, []);
+
+  // Case: debounced auto-save to JSONBin on every state change
+  useEffect(() => {
+    if (!caseId || caseLoading) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      setCaseSaving(true);
+      fetch(`${JBIN_API}/${caseId}`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
+        body: JSON.stringify(state)
+      }).finally(()=>setCaseSaving(false));
+    }, 2000);
+    return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
+  }, [state, caseId, caseLoading]);
+
+  const createCase = async () => {
+    setCaseLoading(true);
+    try {
+      const res = await fetch(JBIN_API, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY,'X-Bin-Name':companyName.trim()||'ROI Case'},
+        body: JSON.stringify(state)
+      });
+      const data = await res.json();
+      const id = data.metadata.id;
+      setCaseId(id);
+      history.replaceState(null, '', `#case=${id}`);
+    } catch(e) { console.error('Failed to create ROI case:',e); }
+    setCaseLoading(false);
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(`${DEPLOY_URL}#case=${caseId}`).then(()=>{
+      setCopied(true); setTimeout(()=>setCopied(false),2600);
+    });
+  };
 
   const handleShare = () => {
     const link = encodeState(state);
@@ -592,6 +661,15 @@ function App() {
   return (
     <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column' }}>
 
+      {/* ── Case loading overlay ── */}
+      {caseLoading && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(9,12,22,0.88)', zIndex:99999, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:16 }}>
+          <div style={{ width:38, height:38, border:'3px solid var(--border)', borderTopColor:'var(--cyan)', borderRadius:'50%', animation:'spin 0.75s linear infinite' }}/>
+          <div style={{ color:'var(--text-primary)', fontSize:15, fontWeight:600 }}>Loading ROI case…</div>
+          <div style={{ color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font-mono)' }}>Fetching saved data from the cloud</div>
+        </div>
+      )}
+
       {/* ── Header ── */}
       <header style={{ background:'var(--bg-surface)', borderBottom:'1px solid var(--border)', padding:'0 40px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, zIndex:100, flexShrink:0 }}>
         <div style={{ display:'flex', alignItems:'center', gap:12 }}>
@@ -604,19 +682,43 @@ function App() {
           </div>
         </div>
 
-        <div style={{ flex:1, maxWidth:320, margin:'0 40px' }}>
-          <input type="text" value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Company name (optional — appears on report)"
-            style={{ width:'100%', padding:'8px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--bg-input)', color:'var(--text-primary)', fontSize:13, outline:'none', transition:'border-color var(--transition)' }}
-            onFocus={e=>e.target.style.borderColor='var(--accent)'} onBlur={e=>e.target.style.borderColor='var(--border)'}/>
+        <div style={{ flex:1, maxWidth:480, margin:'0 24px', display:'flex', gap:8, alignItems:'center' }}>
+          {!caseId ? (
+            <>
+              <input type="text" value={companyName} onChange={e=>setCompanyName(e.target.value)} placeholder="Company name..."
+                style={{ flex:1, padding:'8px 14px', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--bg-input)', color:'var(--text-primary)', fontSize:13, outline:'none', transition:'border-color var(--transition)' }}
+                onFocus={e=>e.target.style.borderColor='var(--accent)'} onBlur={e=>e.target.style.borderColor='var(--border)'}/>
+              {companyName.trim() && (
+                <button onClick={createCase} disabled={caseLoading}
+                  style={{ padding:'8px 16px', borderRadius:'var(--radius-md)', border:'none', background:'var(--accent)', color:'var(--accent-text)', fontSize:13, fontWeight:700, cursor:caseLoading?'wait':'pointer', whiteSpace:'nowrap', flexShrink:0, opacity:caseLoading?0.7:1, transition:'opacity var(--transition)' }}>
+                  {caseLoading ? 'Creating…' : '+ Create ROI Case'}
+                </button>
+              )}
+            </>
+          ) : (
+            <div style={{ display:'flex', alignItems:'center', gap:10, flex:1, background:'var(--bg-elevated)', borderRadius:'var(--radius-md)', border:'1px solid var(--border)', padding:'7px 14px' }}>
+              <div style={{ width:8, height:8, borderRadius:'50%', flexShrink:0, background:caseSaving?'var(--yellow)':'#4aedb5', boxShadow:caseSaving?'none':'0 0 6px rgba(74,237,181,0.6)', transition:'all 0.4s' }}/>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{companyName||'ROI Case'}</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{caseSaving?'Saving…':'Live · auto-saves for all viewers'}</div>
+              </div>
+              <button onClick={handleCopyLink}
+                style={{ padding:'6px 12px', borderRadius:'var(--radius-md)', border:`1px solid ${copied?'rgba(74,237,181,0.4)':'var(--border)'}`, background:copied?'var(--green-muted)':'var(--bg-card)', color:copied?'#4aedb5':'var(--text-secondary)', fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0, display:'flex', alignItems:'center', gap:5, transition:'all var(--transition)' }}>
+                <span>{copied?'✓':'⎘'}</span>{copied?'Copied!':'Copy Link'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-          <button onClick={handleShare}
-            title={shareWarning ? 'This file needs to be hosted on a web server for the link to be openable by others. Set DEPLOY_URL in the source to your hosted URL.' : 'Copy shareable link with all current settings pre-filled'}
-            style={{ padding:'8px 18px', borderRadius:'var(--radius-md)', border:`1px solid ${copied?'rgba(74,237,181,0.4)':shareWarning?'rgba(251,191,36,0.45)':'var(--border)'}`, background:copied?'var(--green-muted)':shareWarning?'rgba(251,191,36,0.08)':'var(--bg-elevated)', color:copied?'var(--green)':shareWarning?'var(--yellow)':'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all var(--transition)' }}>
-            <span style={{ fontSize:15 }}>{copied?'✓':shareWarning?'⚠':'⎘'}</span>
-            {copied ? 'Link copied!' : shareWarning ? 'Host to Share' : 'Share / Customize'}
-          </button>
+          {!caseId && (
+            <button onClick={handleShare}
+              title={shareWarning?'This file needs to be hosted on a web server for the link to be openable by others.':'Copy shareable link with all current settings pre-filled'}
+              style={{ padding:'8px 18px', borderRadius:'var(--radius-md)', border:`1px solid ${copied?'rgba(74,237,181,0.4)':shareWarning?'rgba(251,191,36,0.45)':'var(--border)'}`, background:copied?'var(--green-muted)':shareWarning?'rgba(251,191,36,0.08)':'var(--bg-elevated)', color:copied?'var(--green)':shareWarning?'var(--yellow)':'var(--text-secondary)', fontSize:13, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:7, transition:'all var(--transition)' }}>
+              <span style={{ fontSize:15 }}>{copied?'✓':shareWarning?'⚠':'⎘'}</span>
+              {copied?'Link copied!':shareWarning?'Host to Share':'Share / Customize'}
+            </button>
+          )}
           <button onClick={handleDownload} disabled={c.totalAnnual===0}
             style={{ padding:'8px 22px', borderRadius:'var(--radius-md)', border:'none', background:c.totalAnnual>0?'var(--accent)':'var(--bg-elevated)', color:c.totalAnnual>0?'var(--accent-text)':'var(--text-muted)', fontSize:13, fontWeight:700, cursor:c.totalAnnual>0?'pointer':'not-allowed', display:'flex', alignItems:'center', gap:7, boxShadow:c.totalAnnual>0?'0 0 14px var(--accent-glow)':'none', transition:'all var(--transition)' }}>
             <span style={{ fontSize:15 }}>↓</span> Download Report
