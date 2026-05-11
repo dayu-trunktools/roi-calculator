@@ -120,6 +120,7 @@ const ROI_DEFAULTS = {
 const DEPLOY_URL  = 'https://dayu-trunktools.github.io/roi-calculator/roi-calculator.html';
 const JBIN_KEY    = '$2a$10$E8IGGmDkX03Owl7F5Cgs1ucHMxzJ3gHDJuuEzoPHndmx3eoupmPBG';
 const JBIN_API    = 'https://api.jsonbin.io/v3/b';
+const JBIN_INDEX  = '6a024742250b1311c336ee8e'; // master index of all saved cases
 
 /* ─── URL encode / decode ─────────────────────────────────── */
 const encodeState = (s) => {
@@ -513,6 +514,11 @@ function App() {
   const [caseId,          setCaseId]           = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?m[1]:null; });
   const [caseLoading,     setCaseLoading]      = useState(() => { const m=window.location.hash.match(/#case=([^&\s]+)/); return m?!localStorage.getItem(`roi_case_${m[1]}`):false; });
   const [caseSaving,      setCaseSaving]       = useState(false);
+  const [casesOpen,       setCasesOpen]        = useState(false);
+  const [cases,           setCases]            = useState([]);
+  const [casesLoading,    setCasesLoading]     = useState(false);
+  const [deletingId,      setDeletingId]       = useState(null);
+  const [copiedCase,      setCopiedCase]       = useState(null);
   const saveTimerRef = useRef(null);
 
   const updateRoiInput = (cat, field, val) =>
@@ -614,6 +620,9 @@ function App() {
       .finally(()=>setCaseLoading(false));
   }, []);
 
+  // Load cases when panel is opened
+  useEffect(() => { if (casesOpen) loadCases(); }, [casesOpen]);
+
   // Case: debounced auto-save to JSONBin on every state change
   useEffect(() => {
     if (!caseId || caseLoading) return;
@@ -630,6 +639,49 @@ function App() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [state, caseId, caseLoading]);
 
+  const loadCases = async () => {
+    setCasesLoading(true);
+    try {
+      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
+      const d = await r.json();
+      setCases((d.record?.cases || []).slice().reverse()); // newest first
+    } catch(e) { console.error('Failed to load cases:', e); }
+    setCasesLoading(false);
+  };
+
+  const addToIndex = async (id, name) => {
+    try {
+      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
+      const d = await r.json();
+      const existing = d.record?.cases || [];
+      const updated = [...existing, { id, name: name||'ROI Case', createdAt: new Date().toISOString() }];
+      await fetch(`${JBIN_API}/${JBIN_INDEX}`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
+        body: JSON.stringify({ cases: updated })
+      });
+    } catch(e) { console.error('Failed to update index:', e); }
+  };
+
+  const deleteCase = async (id, name) => {
+    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+    setDeletingId(id);
+    try {
+      await fetch(`${JBIN_API}/${id}`, { method:'DELETE', headers:{'X-Master-Key':JBIN_KEY} });
+      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
+      const d = await r.json();
+      const updated = (d.record?.cases || []).filter(c => c.id !== id);
+      await fetch(`${JBIN_API}/${JBIN_INDEX}`, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
+        body: JSON.stringify({ cases: updated })
+      });
+      setCases(prev => prev.filter(c => c.id !== id));
+      localStorage.removeItem(`roi_case_${id}`);
+    } catch(e) { console.error('Failed to delete case:', e); }
+    setDeletingId(null);
+  };
+
   const createCase = async () => {
     setCaseLoading(true);
     try {
@@ -643,6 +695,7 @@ function App() {
       setCaseId(id);
       history.replaceState(null, '', `#case=${id}`);
       localStorage.setItem(`roi_case_${id}`, JSON.stringify(state));
+      addToIndex(id, companyName.trim()||'ROI Case'); // non-blocking
     } catch(e) { console.error('Failed to create ROI case:',e); }
     setCaseLoading(false);
   };
@@ -1208,6 +1261,50 @@ function App() {
                   <div style={{ marginTop:6, padding:'7px 18px', background:'rgba(255,112,112,0.1)', border:'1px solid rgba(255,112,112,0.2)', borderRadius:'var(--radius-xl)', fontSize:12, fontFamily:'var(--font-mono)', color:'var(--red)' }}>
                     {formatCurrency(c.monthlyCost * 3)} / quarter &nbsp;·&nbsp; {formatCurrency(c.totalAnnual)} / year
                   </div>
+                </div>
+
+                {/* Saved Cases */}
+                <div style={{ border:'1px solid var(--border)', borderRadius:'var(--radius-lg)', overflow:'hidden' }}>
+                  <button onClick={() => setCasesOpen(o => !o)}
+                    style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--bg-elevated)', border:'none', cursor:'pointer', color:'var(--text-primary)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ fontSize:13 }}>📁</span>
+                      <span style={{ fontSize:13, fontWeight:600 }}>Saved Cases</span>
+                    </div>
+                    <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)', display:'inline-block', transform:casesOpen?'rotate(180deg)':'none', transition:'transform var(--transition)' }}>▼</span>
+                  </button>
+                  {casesOpen && (
+                    <div style={{ background:'var(--bg-card)' }}>
+                      {casesLoading ? (
+                        <div style={{ padding:'16px', textAlign:'center', color:'var(--text-muted)', fontSize:12 }}>Loading…</div>
+                      ) : cases.length === 0 ? (
+                        <div style={{ padding:'16px', textAlign:'center', color:'var(--text-muted)', fontSize:12 }}>No saved cases yet</div>
+                      ) : cases.map((entry, i) => (
+                        <div key={entry.id} style={{ display:'flex', alignItems:'center', padding:'9px 12px', gap:7, borderTop: i===0?'none':'1px solid var(--border-light)' }}>
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:12, fontWeight:600, color:'var(--text-primary)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{entry.name}</div>
+                            <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--font-mono)' }}>{new Date(entry.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'})}</div>
+                          </div>
+                          <button onClick={() => { navigator.clipboard.writeText(`${DEPLOY_URL}#case=${entry.id}`); setCopiedCase(entry.id); setTimeout(()=>setCopiedCase(null),2000); }}
+                            title="Copy link"
+                            style={{ padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--bg-elevated)', color:copiedCase===entry.id?'var(--green)':'var(--text-muted)', fontSize:11, cursor:'pointer', flexShrink:0, transition:'color var(--transition)' }}>
+                            {copiedCase===entry.id?'✓':'⎘'}
+                          </button>
+                          <button onClick={() => window.open(`${DEPLOY_URL}#case=${entry.id}`, '_blank')}
+                            title="Open case"
+                            style={{ padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--border)', background:'var(--bg-elevated)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', flexShrink:0 }}>
+                            Open
+                          </button>
+                          <button onClick={() => deleteCase(entry.id, entry.name)}
+                            disabled={deletingId===entry.id}
+                            title="Delete case"
+                            style={{ padding:'4px 8px', borderRadius:'var(--radius-sm)', border:'1px solid rgba(255,112,112,0.3)', background:'rgba(255,112,112,0.07)', color:'var(--red)', fontSize:11, cursor:deletingId===entry.id?'wait':'pointer', flexShrink:0, opacity:deletingId===entry.id?0.4:1 }}>
+                            {deletingId===entry.id?'…':'✕'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
               </div>
