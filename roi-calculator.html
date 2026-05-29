@@ -120,7 +120,8 @@ const ROI_DEFAULTS = {
 const DEPLOY_URL  = 'https://dayu-trunktools.github.io/roi-calculator/roi-calculator.html';
 const JBIN_KEY    = '$2a$10$E8IGGmDkX03Owl7F5Cgs1ucHMxzJ3gHDJuuEzoPHndmx3eoupmPBG';
 const JBIN_API    = 'https://api.jsonbin.io/v3/b';
-const JBIN_INDEX  = '6a024742250b1311c336ee8e'; // master index of all saved cases
+const JBIN_COLL   = 'https://api.jsonbin.io/v3/c/uncategorized/bins'; // lists all bins (source of truth for Saved Cases)
+const JBIN_INDEX  = '6a024742250b1311c336ee8e'; // legacy index bin — filtered out of the case list
 
 /* ─── URL encode / decode ─────────────────────────────────── */
 const encodeState = (s) => {
@@ -639,28 +640,28 @@ function App() {
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current); };
   }, [state, caseId, caseLoading]);
 
+  // Source of truth = the bins themselves. We list every bin on the account
+  // (paginated, 10 at a time, newest first) and treat each non-index bin as a
+  // case. No separate index to drift out of sync. JBIN_COLL endpoint returns
+  // {record:<binId>, snippetMeta:{name}, createdAt}.
   const loadCases = async () => {
     setCasesLoading(true);
     try {
-      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
-      const d = await r.json();
-      setCases((d.record?.cases || []).slice().reverse()); // newest first
+      let all = [], url = JBIN_COLL;
+      while (true) {
+        const r = await fetch(url, { headers:{'X-Master-Key':JBIN_KEY} });
+        const page = await r.json();
+        if (!Array.isArray(page) || page.length === 0) break;
+        all = all.concat(page);
+        if (page.length < 10) break;                 // last page
+        url = `${JBIN_COLL}/${page[page.length-1].record}`; // next page cursor
+      }
+      setCases(all
+        .filter(b => b.record !== JBIN_INDEX)         // skip the legacy index bin
+        .map(b => ({ id: b.record, name: b.snippetMeta?.name || 'ROI Case', createdAt: b.createdAt }))
+      ); // API already returns newest-first
     } catch(e) { console.error('Failed to load cases:', e); }
     setCasesLoading(false);
-  };
-
-  const addToIndex = async (id, name) => {
-    try {
-      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
-      const d = await r.json();
-      const existing = d.record?.cases || [];
-      const updated = [...existing, { id, name: name||'ROI Case', createdAt: new Date().toISOString() }];
-      await fetch(`${JBIN_API}/${JBIN_INDEX}`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
-        body: JSON.stringify({ cases: updated })
-      });
-    } catch(e) { console.error('Failed to update index:', e); }
   };
 
   const deleteCase = async (id, name) => {
@@ -668,14 +669,6 @@ function App() {
     setDeletingId(id);
     try {
       await fetch(`${JBIN_API}/${id}`, { method:'DELETE', headers:{'X-Master-Key':JBIN_KEY} });
-      const r = await fetch(`${JBIN_API}/${JBIN_INDEX}/latest`, { headers:{'X-Master-Key':JBIN_KEY} });
-      const d = await r.json();
-      const updated = (d.record?.cases || []).filter(c => c.id !== id);
-      await fetch(`${JBIN_API}/${JBIN_INDEX}`, {
-        method:'PUT',
-        headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},
-        body: JSON.stringify({ cases: updated })
-      });
       setCases(prev => prev.filter(c => c.id !== id));
       localStorage.removeItem(`roi_case_${id}`);
     } catch(e) { console.error('Failed to delete case:', e); }
@@ -695,7 +688,8 @@ function App() {
       setCaseId(id);
       history.replaceState(null, '', `#case=${id}`);
       localStorage.setItem(`roi_case_${id}`, JSON.stringify(state));
-      addToIndex(id, companyName.trim()||'ROI Case'); // non-blocking
+      // No index to update — the new bin (named via X-Bin-Name above) shows up
+      // automatically next time the Saved Cases panel lists bins.
     } catch(e) { console.error('Failed to create ROI case:',e); }
     setCaseLoading(false);
   };
